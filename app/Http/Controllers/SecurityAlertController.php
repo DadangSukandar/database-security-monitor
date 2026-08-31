@@ -20,6 +20,7 @@ class SecurityAlertController extends Controller
     public function index(Request $request): View
     {
         $query = SecurityAlert::query()
+            ->canonical()
             ->with([
                 'databaseConnection',
                 'databaseActivity',
@@ -170,28 +171,28 @@ class SecurityAlertController extends Controller
          * STATISTICS
          */
         $totalAlerts =
-            SecurityAlert::count();
+            SecurityAlert::query()->canonical()->count();
 
         $openAlerts =
-            SecurityAlert::where(
+            SecurityAlert::query()->canonical()->where(
                 'status',
                 'OPEN'
             )->count();
 
         $acknowledgedAlerts =
-            SecurityAlert::where(
+            SecurityAlert::query()->canonical()->where(
                 'status',
                 'ACKNOWLEDGED'
             )->count();
 
         $resolvedAlerts =
-            SecurityAlert::where(
+            SecurityAlert::query()->canonical()->where(
                 'status',
                 'RESOLVED'
             )->count();
 
         $criticalAlerts =
-            SecurityAlert::where(
+            SecurityAlert::query()->canonical()->where(
                 'status',
                 'OPEN'
             )
@@ -202,7 +203,7 @@ class SecurityAlertController extends Controller
                 ->count();
 
         $highAlerts =
-            SecurityAlert::where(
+            SecurityAlert::query()->canonical()->where(
                 'status',
                 'OPEN'
             )
@@ -217,6 +218,7 @@ class SecurityAlertController extends Controller
          */
         $databases =
             SecurityAlert::query()
+                ->canonical()
                 ->whereNotNull('database_name')
                 ->where(
                     'database_name',
@@ -229,6 +231,7 @@ class SecurityAlertController extends Controller
 
         $alertTypes =
             SecurityAlert::query()
+                ->canonical()
                 ->whereNotNull('alert_type')
                 ->where(
                     'alert_type',

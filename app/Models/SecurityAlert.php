@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -61,6 +62,10 @@ class SecurityAlert extends Model
 
         'last_assessment_id',
 
+        'canonical_alert_id',
+
+        'consolidated_at',
+
         'detected_at',
 
         'acknowledged_at',
@@ -80,6 +85,10 @@ class SecurityAlert extends Model
         'occurrence_count' => 'integer',
 
         'last_assessment_id' => 'integer',
+
+        'canonical_alert_id' => 'integer',
+
+        'consolidated_at' => 'datetime',
 
         'first_seen_at' => 'datetime',
 
@@ -163,6 +172,22 @@ class SecurityAlert extends Model
             SecurityAlertHistory::class,
             'security_alert_id'
         )->latest();
+    }
+
+    /** @param Builder<SecurityAlert> $query */
+    public function scopeCanonical(Builder $query): Builder
+    {
+        return $query->whereNull('canonical_alert_id');
+    }
+
+    public function canonicalAlert(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'canonical_alert_id');
+    }
+
+    public function historicalDuplicates(): HasMany
+    {
+        return $this->hasMany(self::class, 'canonical_alert_id');
     }
 
     /**

@@ -251,6 +251,7 @@ class GenerateSecurityAlerts extends Command
                     $tableName
                 ): string {
                     $alert = SecurityAlert::query()
+                        ->canonical()
                         ->where('fingerprint', $fingerprint)
                         ->lockForUpdate()
                         ->first();
@@ -510,6 +511,7 @@ class GenerateSecurityAlerts extends Command
         ?string $tableName
     ): ?SecurityAlert {
         return SecurityAlert::query()
+            ->canonical()
             ->whereNull('fingerprint')
             ->where('alert_type', $alertType)
             ->when(

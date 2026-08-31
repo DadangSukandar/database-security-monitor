@@ -17,6 +17,7 @@ class EscalateSecurityAlerts extends Command
     public function handle(SecurityAlertNotificationService $notificationService): int
     {
         $alerts = SecurityAlert::query()
+            ->canonical()
             ->whereIn('status', ['OPEN', 'ACKNOWLEDGED'])
             ->whereDoesntHave('histories', fn ($query) => $query->where('action', 'SLA_ESCALATION'))
             ->get()

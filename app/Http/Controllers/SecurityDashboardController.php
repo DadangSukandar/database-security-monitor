@@ -308,6 +308,7 @@ class SecurityDashboardController extends Controller
          */
 
         $alertQuery = SecurityAlert::query()
+            ->canonical()
             ->where(
                 'alert_type',
                 'VULNERABILITY'
@@ -446,7 +447,7 @@ class SecurityDashboardController extends Controller
 
         $recentAlertActivity = SecurityAlertHistory::query()
             ->with('alert')
-            ->whereHas('alert', fn ($query) => $query->where('alert_type', 'VULNERABILITY'))
+            ->whereHas('alert', fn ($query) => $query->canonical()->where('alert_type', 'VULNERABILITY'))
             ->latest()
             ->limit(8)
             ->get();
@@ -475,6 +476,7 @@ class SecurityDashboardController extends Controller
 
             $latestDatabaseAlerts =
                 SecurityAlert::query()
+                    ->canonical()
                     ->where(
                         'alert_type',
                         'VULNERABILITY'
@@ -500,6 +502,7 @@ class SecurityDashboardController extends Controller
 
         $alertSeverityDistribution =
             SecurityAlert::query()
+                ->canonical()
                 ->where(
                     'alert_type',
                     'VULNERABILITY'
