@@ -6,6 +6,7 @@ use App\Models\SecurityAlert;
 use App\Models\SecurityAlertHistory;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
+use App\Services\SecurityAlertFingerprintService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -29,13 +30,12 @@ class GenerateSecurityAlerts extends Command
     protected $description =
         'Generate security alerts dari HIGH dan CRITICAL vulnerability findings';
 
-
     /**
      * =========================================================
      * HANDLE
      * =========================================================
      */
-    public function handle(): int
+    public function handle(SecurityAlertFingerprintService $fingerprints): int
     {
         $this->newLine();
 
@@ -52,7 +52,6 @@ class GenerateSecurityAlerts extends Command
         );
 
         $this->newLine();
-
 
         /*
          * =====================================================
@@ -75,14 +74,13 @@ class GenerateSecurityAlerts extends Command
                     ->first();
         }
 
-
         /*
          * =====================================================
          * ASSESSMENT NOT FOUND
          * =====================================================
          */
 
-        if (!$assessment) {
+        if (! $assessment) {
 
             $this->warn(
                 'Assessment tidak ditemukan.'
@@ -91,7 +89,6 @@ class GenerateSecurityAlerts extends Command
             return self::SUCCESS;
         }
 
-
         /*
          * =====================================================
          * DISPLAY ASSESSMENT
@@ -99,12 +96,12 @@ class GenerateSecurityAlerts extends Command
          */
 
         $this->line(
-            'Assessment ID : ' .
+            'Assessment ID : '.
             $assessment->id
         );
 
         $this->line(
-            'Database      : ' .
+            'Database      : '.
             (
                 $assessment->database_name
                 ?? '-'
@@ -112,7 +109,7 @@ class GenerateSecurityAlerts extends Command
         );
 
         $this->line(
-            'Score         : ' .
+            'Score         : '.
             (
                 $assessment->score
                 ?? '-'
@@ -120,7 +117,6 @@ class GenerateSecurityAlerts extends Command
         );
 
         $this->newLine();
-
 
         /*
          * =====================================================
@@ -153,7 +149,6 @@ class GenerateSecurityAlerts extends Command
                 ->orderBy('id')
                 ->get();
 
-
         /*
          * =====================================================
          * NO HIGH / CRITICAL
@@ -168,7 +163,6 @@ class GenerateSecurityAlerts extends Command
 
             return self::SUCCESS;
         }
-
 
         /*
          * =====================================================
@@ -185,7 +179,6 @@ class GenerateSecurityAlerts extends Command
         $existing = 0;
 
         $failed = 0;
-
 
         /*
          * =====================================================
@@ -206,7 +199,6 @@ class GenerateSecurityAlerts extends Command
                 $alertType =
                     'VULNERABILITY';
 
-
                 /*
                  * -------------------------------------------------
                  * DATABASE NAME
@@ -218,15 +210,13 @@ class GenerateSecurityAlerts extends Command
                     ?: $assessment->database_name
                     ?: 'Unknown Database';
 
-
                 $description =
-                    '[Assessment #' .
-                    $assessment->id .
-                    '] ' .
-                    '[Finding #' .
-                    $finding->id .
+                    '[Assessment #'.
+                    $assessment->id.
+                    '] '.
+                    '[Finding #'.
+                    $finding->id.
                     '] ';
-
 
                 if ($finding->description) {
 
@@ -239,11 +229,9 @@ class GenerateSecurityAlerts extends Command
                         'Security vulnerability detected.';
                 }
 
-
                 $connectionId = $this->getConnectionId($assessment);
                 $tableName = $finding->getAttribute('table_name') ?: null;
-                $fingerprint = $this->fingerprint(
-                    $alertType,
+                $fingerprint = $fingerprints->forVulnerabilityFinding(
                     $connectionId,
                     $databaseName,
                     $finding,
@@ -347,7 +335,7 @@ class GenerateSecurityAlerts extends Command
                             'action' => 'AUTO_REOPEN',
                             'old_status' => $oldStatus,
                             'new_status' => 'OPEN',
-                            'notes' => 'Finding ditemukan kembali pada assessment #' . $assessment->id . '.',
+                            'notes' => 'Finding ditemukan kembali pada assessment #'.$assessment->id.'.',
                         ]);
 
                         return 'reopened';
@@ -371,7 +359,7 @@ class GenerateSecurityAlerts extends Command
                 };
 
                 $this->{$outcome === 'created' ? 'info' : 'line'}(
-                    '[' . $label . '] [' . strtoupper((string) $finding->severity) . '] ' . $finding->title
+                    '['.$label.'] ['.strtoupper((string) $finding->severity).'] '.$finding->title
                 );
 
             } catch (Throwable $e) {
@@ -379,14 +367,13 @@ class GenerateSecurityAlerts extends Command
                 $failed++;
 
                 $this->error(
-                    '[FAILED] Finding #' .
-                    $finding->id .
-                    ' - ' .
+                    '[FAILED] Finding #'.
+                    $finding->id.
+                    ' - '.
                     $e->getMessage()
                 );
             }
         }
-
 
         /*
          * =====================================================
@@ -409,12 +396,12 @@ class GenerateSecurityAlerts extends Command
         );
 
         $this->line(
-            'Assessment : #' .
+            'Assessment : #'.
             $assessment->id
         );
 
         $this->line(
-            'Critical   : ' .
+            'Critical   : '.
             $findings
                 ->where(
                     'severity',
@@ -424,7 +411,7 @@ class GenerateSecurityAlerts extends Command
         );
 
         $this->line(
-            'High       : ' .
+            'High       : '.
             $findings
                 ->where(
                     'severity',
@@ -434,37 +421,36 @@ class GenerateSecurityAlerts extends Command
         );
 
         $this->line(
-            'Created    : ' .
+            'Created    : '.
             $created
         );
 
         $this->line(
-            'Existing   : ' .
+            'Existing   : '.
             $existing
         );
 
         $this->line(
-            'Correlated : ' .
+            'Correlated : '.
             $correlated
         );
 
         $this->line(
-            'Reopened   : ' .
+            'Reopened   : '.
             $reopened
         );
 
         $this->line(
-            'Failed     : ' .
+            'Failed     : '.
             $failed
         );
 
         $this->line(
-            'Total      : ' .
+            'Total      : '.
             $findings->count()
         );
 
         $this->newLine();
-
 
         /*
          * =====================================================
@@ -476,7 +462,6 @@ class GenerateSecurityAlerts extends Command
             ? self::FAILURE
             : self::SUCCESS;
     }
-
 
     /**
      * =========================================================
@@ -501,7 +486,6 @@ class GenerateSecurityAlerts extends Command
             'security_connection_id',
         ];
 
-
         foreach ($possibleColumns as $column) {
 
             $value =
@@ -509,44 +493,13 @@ class GenerateSecurityAlerts extends Command
                     $column
                 );
 
-
             if ($value !== null) {
 
                 return (int) $value;
             }
         }
 
-
         return null;
-    }
-
-    private function fingerprint(
-        string $alertType,
-        ?int $connectionId,
-        string $databaseName,
-        VulnerabilityFinding $finding,
-        ?string $tableName
-    ): string {
-        $ruleIdentity = trim((string) $finding->rule_code) !== ''
-            ? 'rule:' . $finding->rule_code
-            : 'title:' . $finding->title;
-
-        return hash('sha256', implode('|', [
-            $this->normalize($alertType),
-            (string) ($connectionId ?? ''),
-            $this->normalize($databaseName),
-            $this->normalize($ruleIdentity),
-            $this->normalize($finding->username),
-            $this->normalize($finding->host),
-            $this->normalize($tableName),
-        ]));
-    }
-
-    private function normalize(mixed $value): string
-    {
-        return mb_strtolower(
-            preg_replace('/\s+/', ' ', trim((string) $value)) ?? ''
-        );
     }
 
     private function findLegacyAlert(
@@ -592,7 +545,7 @@ class GenerateSecurityAlerts extends Command
         return $alert->last_assessment_id === null
             && str_starts_with(
                 (string) $alert->description,
-                '[Assessment #' . $assessment->id . '] '
+                '[Assessment #'.$assessment->id.'] '
             );
     }
 }
