@@ -3,10 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Models\SecurityAlert;
-use App\Models\SecurityAlertHistory;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
 use App\Services\SecurityAlertFingerprintService;
+use App\Services\SecurityAlertLifecycleService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -35,7 +35,10 @@ class GenerateSecurityAlerts extends Command
      * HANDLE
      * =========================================================
      */
-    public function handle(SecurityAlertFingerprintService $fingerprints): int
+    public function handle(
+        SecurityAlertFingerprintService $fingerprints,
+        SecurityAlertLifecycleService $lifecycle
+    ): int
     {
         $this->newLine();
 
@@ -247,6 +250,7 @@ class GenerateSecurityAlerts extends Command
                     $description,
                     $finding,
                     $fingerprint,
+                    $lifecycle,
                     $seenAt,
                     $tableName
                 ): string {
@@ -287,6 +291,7 @@ class GenerateSecurityAlerts extends Command
                             'last_seen_at' => $seenAt,
                             'last_assessment_id' => $assessment->id,
                             'detected_at' => $seenAt,
+                            'sla_started_at' => $seenAt,
                             'resolved_at' => null,
                             'resolution_note' => null,
                         ]);
@@ -324,20 +329,14 @@ class GenerateSecurityAlerts extends Command
                         'first_seen_at' => $alert->first_seen_at ?? $alert->detected_at ?? $seenAt,
                         'last_seen_at' => $seenAt,
                         'last_assessment_id' => $assessment->id,
-                        'status' => $reopened ? 'OPEN' : $alert->status,
-                        'acknowledged_at' => $reopened ? null : $alert->acknowledged_at,
-                        'resolved_at' => $reopened ? null : $alert->resolved_at,
-                        'resolution_note' => $reopened ? null : $alert->resolution_note,
                     ]);
 
                     if ($reopened) {
-                        SecurityAlertHistory::query()->create([
-                            'security_alert_id' => $alert->id,
-                            'action' => 'AUTO_REOPEN',
-                            'old_status' => $oldStatus,
-                            'new_status' => 'OPEN',
-                            'notes' => 'Finding ditemukan kembali pada assessment #'.$assessment->id.'.',
-                        ]);
+                        $lifecycle->autoReopen(
+                            $alert,
+                            $assessment->id,
+                            $seenAt
+                        );
 
                         return 'reopened';
                     }

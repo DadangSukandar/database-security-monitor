@@ -453,7 +453,7 @@ class SecurityDashboardController extends Controller
             ->get();
 
         $activeAlertsForSla = (clone $alertQuery)
-            ->whereIn('status', ['OPEN', 'ACKNOWLEDGED'])
+            ->whereIn('status', ['OPEN', 'ACKNOWLEDGED', 'INVESTIGATING'])
             ->get();
 
         $breachedSlaAlerts = $activeAlertsForSla

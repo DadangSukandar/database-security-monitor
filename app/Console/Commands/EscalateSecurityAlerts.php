@@ -18,10 +18,20 @@ class EscalateSecurityAlerts extends Command
     {
         $alerts = SecurityAlert::query()
             ->canonical()
-            ->whereIn('status', ['OPEN', 'ACKNOWLEDGED'])
-            ->whereDoesntHave('histories', fn ($query) => $query->where('action', 'SLA_ESCALATION'))
+            ->whereIn('status', ['OPEN', 'ACKNOWLEDGED', 'INVESTIGATING'])
+            ->with([
+                'histories' => fn ($query) => $query->where('action', 'SLA_ESCALATION'),
+            ])
             ->get()
-            ->filter(fn (SecurityAlert $alert): bool => $alert->hasBreachedResponseSla());
+            ->filter(function (SecurityAlert $alert): bool {
+                $slaStartedAt = $alert->responseSlaStartedAt();
+                $alreadyEscalated = $alert->histories->contains(
+                    fn ($history): bool => $slaStartedAt !== null
+                        && $history->created_at?->gte($slaStartedAt)
+                );
+
+                return ! $alreadyEscalated && $alert->hasBreachedResponseSla();
+            });
 
         $escalated = 0;
 

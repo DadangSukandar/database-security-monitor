@@ -68,6 +68,8 @@ class SecurityAlert extends Model
 
         'detected_at',
 
+        'sla_started_at',
+
         'acknowledged_at',
 
         'resolved_at',
@@ -95,6 +97,8 @@ class SecurityAlert extends Model
         'last_seen_at' => 'datetime',
 
         'detected_at' => 'datetime',
+
+        'sla_started_at' => 'datetime',
 
         'acknowledged_at' => 'datetime',
 
@@ -250,9 +254,14 @@ class SecurityAlert extends Model
 
     public function responseSlaDeadline(): ?CarbonInterface
     {
-        return $this->detected_at?->copy()->addMinutes(
+        return $this->responseSlaStartedAt()?->copy()->addMinutes(
             $this->responseSlaMinutes()
         );
+    }
+
+    public function responseSlaStartedAt(): ?CarbonInterface
+    {
+        return $this->sla_started_at ?? $this->detected_at;
     }
 
     public function responseSlaStatus(?CarbonInterface $at = null): string

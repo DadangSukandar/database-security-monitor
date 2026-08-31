@@ -3,10 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\SecurityAlert;
-use App\Models\SecurityAlertHistory;
+use App\Services\SecurityAlertLifecycleService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Throwable;
 
@@ -285,41 +284,16 @@ class SecurityAlertController extends Controller
      * ACKNOWLEDGE
      * =========================================================
      */
-    public function acknowledge(SecurityAlert $alert): RedirectResponse
+    public function acknowledge(
+        SecurityAlert $alert,
+        SecurityAlertLifecycleService $lifecycle
+    ): RedirectResponse
     {
-        if (
-            strtoupper($alert->status)
-            === 'RESOLVED'
-        ) {
-
-            return back()->withErrors([
-                'alert' => 'Alert yang sudah resolved tidak dapat di-acknowledge.',
-            ]);
+        try {
+            $lifecycle->acknowledge($alert, auth()->id());
+        } catch (Throwable $exception) {
+            return back()->withErrors(['alert' => $exception->getMessage()]);
         }
-
-        $oldStatus = strtoupper((string) $alert->status);
-
-        if ($oldStatus === 'ACKNOWLEDGED') {
-            return back()->with(
-                'success',
-                'Security alert sudah di-acknowledge.'
-            );
-        }
-
-        DB::transaction(function () use ($alert, $oldStatus): void {
-            $alert->update([
-                'status' => 'ACKNOWLEDGED',
-                'acknowledged_at' => now(),
-            ]);
-
-            $this->recordHistory(
-                $alert,
-                'ACKNOWLEDGE',
-                $oldStatus,
-                'ACKNOWLEDGED',
-                'Security alert di-acknowledge.'
-            );
-        });
 
         return back()->with(
             'success',
@@ -334,7 +308,8 @@ class SecurityAlertController extends Controller
      */
     public function resolve(
         Request $request,
-        SecurityAlert $alert
+        SecurityAlert $alert,
+        SecurityAlertLifecycleService $lifecycle
     ): RedirectResponse {
         $validated = $request->validate([
             'resolution_note' => [
@@ -346,28 +321,11 @@ class SecurityAlertController extends Controller
 
         try {
 
-            $oldStatus = strtoupper((string) $alert->status);
-
-            if ($oldStatus === 'RESOLVED') {
-                return back()->with('success', 'Security alert sudah diselesaikan.');
-            }
-
-            DB::transaction(function () use ($alert, $oldStatus, $validated): void {
-                $alert->update([
-                    'status' => 'RESOLVED',
-                    'acknowledged_at' => $alert->acknowledged_at ?? now(),
-                    'resolved_at' => now(),
-                    'resolution_note' => $validated['resolution_note'],
-                ]);
-
-                $this->recordHistory(
-                    $alert,
-                    'RESOLVE',
-                    $oldStatus,
-                    'RESOLVED',
-                    $validated['resolution_note']
-                );
-            });
+            $lifecycle->resolve(
+                $alert,
+                $validated['resolution_note'],
+                auth()->id()
+            );
 
             return back()->with(
                 'success',
@@ -388,32 +346,14 @@ class SecurityAlertController extends Controller
      * REOPEN
      * =========================================================
      */
-    public function reopen(SecurityAlert $alert): RedirectResponse
+    public function reopen(
+        SecurityAlert $alert,
+        SecurityAlertLifecycleService $lifecycle
+    ): RedirectResponse
     {
         try {
 
-            $oldStatus = strtoupper((string) $alert->status);
-
-            if ($oldStatus === 'OPEN') {
-                return back()->with('success', 'Security alert sudah terbuka.');
-            }
-
-            DB::transaction(function () use ($alert, $oldStatus): void {
-                $alert->update([
-                    'status' => 'OPEN',
-                    'acknowledged_at' => null,
-                    'resolved_at' => null,
-                    'resolution_note' => null,
-                ]);
-
-                $this->recordHistory(
-                    $alert,
-                    'REOPEN',
-                    $oldStatus,
-                    'OPEN',
-                    'Security alert dibuka kembali.'
-                );
-            });
+            $lifecycle->reopen($alert, auth()->id());
 
             return back()->with(
                 'success',
@@ -429,20 +369,4 @@ class SecurityAlertController extends Controller
         }
     }
 
-    private function recordHistory(
-        SecurityAlert $alert,
-        string $action,
-        string $oldStatus,
-        string $newStatus,
-        ?string $notes = null
-    ): void {
-        SecurityAlertHistory::create([
-            'security_alert_id' => $alert->id,
-            'action' => $action,
-            'old_status' => $oldStatus,
-            'new_status' => $newStatus,
-            'notes' => $notes,
-            'user_id' => auth()->id(),
-        ]);
-    }
 }

@@ -110,6 +110,7 @@ it('automatically reopens a resolved alert when the finding recurs', function ()
         ->assertSuccessful();
 
     $alert = SecurityAlert::query()->sole();
+    $originalDetectedAt = $alert->detected_at;
     $alert->update([
         'status' => 'RESOLVED',
         'acknowledged_at' => now()->subHour(),
@@ -134,6 +135,11 @@ it('automatically reopens a resolved alert when the finding recurs', function ()
         ->and($reopenedAlert->status)->toBe('OPEN')
         ->and($reopenedAlert->occurrence_count)->toBe(2)
         ->and($reopenedAlert->last_assessment_id)->toBe($secondAssessment->id)
+        ->and($reopenedAlert->detected_at->equalTo($originalDetectedAt))->toBeTrue()
+        ->and($reopenedAlert->first_seen_at->equalTo($firstAssessment->scanned_at))->toBeTrue()
+        ->and($reopenedAlert->last_seen_at->equalTo($secondAssessment->scanned_at))->toBeTrue()
+        ->and($reopenedAlert->sla_started_at->equalTo($secondAssessment->scanned_at))->toBeTrue()
+        ->and($reopenedAlert->responseSlaStatus($secondAssessment->scanned_at))->toBe('ON_TRACK')
         ->and($reopenedAlert->acknowledged_at)->toBeNull()
         ->and($reopenedAlert->resolved_at)->toBeNull()
         ->and($reopenedAlert->resolution_note)->toBeNull();

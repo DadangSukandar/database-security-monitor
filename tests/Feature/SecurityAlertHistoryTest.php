@@ -26,14 +26,16 @@ it('records an alert acknowledgement in history', function () {
     ]);
 });
 
-it('does not duplicate history for an idempotent acknowledgement', function () {
+it('rejects a repeated acknowledgement without duplicating history', function () {
     $alert = SecurityAlert::query()->create([
         'severity' => 'MEDIUM',
         'title' => 'Unusual query pattern',
         'status' => 'ACKNOWLEDGED',
     ]);
 
-    $this->post(route('security-alerts.acknowledge', $alert))->assertRedirect();
+    $this->post(route('security-alerts.acknowledge', $alert))
+        ->assertRedirect()
+        ->assertSessionHasErrors('alert');
 
     expect($alert->histories()->count())->toBe(0);
 });
