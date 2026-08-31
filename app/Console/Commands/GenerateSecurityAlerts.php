@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\SecurityAlertHistory;
 use App\Models\SecurityAlert;
+use App\Models\SecurityAlertHistory;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
 use Illuminate\Console\Command;
@@ -219,16 +219,6 @@ class GenerateSecurityAlerts extends Command
                     ?: 'Unknown Database';
 
 
-                /*
-                 * -------------------------------------------------
-                 * DESCRIPTION
-                 *
-                 * Assessment ID + Finding ID digunakan sebagai
-                 * identitas unik karena tabel security_alerts lama
-                 * belum mempunyai vulnerability_finding_id.
-                 * -------------------------------------------------
-                 */
-
                 $description =
                     '[Assessment #' .
                     $assessment->id .
@@ -250,151 +240,138 @@ class GenerateSecurityAlerts extends Command
                 }
 
 
-                /*
-                 * -------------------------------------------------
-                 * CHECK DUPLICATE
-                 * -------------------------------------------------
-                 */
+                $connectionId = $this->getConnectionId($assessment);
+                $tableName = $finding->getAttribute('table_name') ?: null;
+                $fingerprint = $this->fingerprint(
+                    $alertType,
+                    $connectionId,
+                    $databaseName,
+                    $finding,
+                    $tableName
+                );
+                $seenAt = $assessment->scanned_at ?? $finding->created_at ?? now();
 
-                $existingAlert =
-                    SecurityAlert::query()
-                        ->where(
-                            'alert_type',
-                            $alertType
-                        )
-                        ->where(
-                            'database_name',
-                            $databaseName
-                        )
-                        ->where(
-                            'title',
-                            $finding->title
-                        )
-                        ->where(
-                            'description',
-                            'like',
-                            '[Assessment #' .
-                            $assessment->id .
-                            '] [Finding #' .
-                            $finding->id .
-                            ']%'
-                        )
+                $outcome = DB::transaction(function () use (
+                    $alertType,
+                    $assessment,
+                    $connectionId,
+                    $databaseName,
+                    $description,
+                    $finding,
+                    $fingerprint,
+                    $seenAt,
+                    $tableName
+                ): string {
+                    $alert = SecurityAlert::query()
+                        ->where('fingerprint', $fingerprint)
+                        ->lockForUpdate()
                         ->first();
 
+                    if ($alert === null) {
+                        $alert = $this->findLegacyAlert(
+                            $alertType,
+                            $connectionId,
+                            $databaseName,
+                            $finding,
+                            $tableName
+                        );
+                    }
 
-                if ($existingAlert) {
+                    if ($alert === null) {
+                        SecurityAlert::query()->create([
+                            'database_activity_id' => null,
+                            'database_connection_id' => $connectionId,
+                            'database_name' => $databaseName,
+                            'username' => $finding->username ?: null,
+                            'client_ip' => $finding->host ?: null,
+                            'alert_type' => $alertType,
+                            'fingerprint' => $fingerprint,
+                            'rule' => $finding->rule_code ?: null,
+                            'severity' => strtoupper((string) $finding->severity),
+                            'title' => $finding->title,
+                            'description' => $description,
+                            'query' => $finding->evidence ?: null,
+                            'table_name' => $tableName,
+                            'status' => 'OPEN',
+                            'occurrence_count' => 1,
+                            'first_seen_at' => $seenAt,
+                            'last_seen_at' => $seenAt,
+                            'last_assessment_id' => $assessment->id,
+                            'detected_at' => $seenAt,
+                            'resolved_at' => null,
+                            'resolution_note' => null,
+                        ]);
 
-                    $existing++;
+                        return 'created';
+                    }
 
-                    $this->line(
-                        '[EXISTS] [' .
-                        strtoupper(
-                            $finding->severity
-                        ) .
-                        '] ' .
-                        $finding->title
-                    );
+                    if (
+                        (int) $alert->last_assessment_id === (int) $assessment->id
+                        || $this->isLegacyOccurrenceFromAssessment($alert, $assessment)
+                    ) {
+                        $alert->update([
+                            'fingerprint' => $fingerprint,
+                            'rule' => $finding->rule_code ?: $alert->rule,
+                            'occurrence_count' => max(1, (int) $alert->occurrence_count),
+                            'first_seen_at' => $alert->first_seen_at ?? $alert->detected_at ?? $seenAt,
+                            'last_seen_at' => $alert->last_seen_at ?? $seenAt,
+                            'last_assessment_id' => $assessment->id,
+                        ]);
 
-                    continue;
-                }
+                        return 'existing';
+                    }
 
+                    $oldStatus = strtoupper((string) $alert->status);
+                    $reopened = $oldStatus === 'RESOLVED';
 
-                /*
-                 * -------------------------------------------------
-                 * CREATE ALERT
-                 * -------------------------------------------------
-                 */
+                    $alert->update([
+                        'fingerprint' => $fingerprint,
+                        'rule' => $finding->rule_code ?: $alert->rule,
+                        'severity' => strtoupper((string) $finding->severity),
+                        'title' => $finding->title,
+                        'description' => $description,
+                        'query' => $finding->evidence ?: null,
+                        'occurrence_count' => max(1, (int) $alert->occurrence_count) + 1,
+                        'first_seen_at' => $alert->first_seen_at ?? $alert->detected_at ?? $seenAt,
+                        'last_seen_at' => $seenAt,
+                        'last_assessment_id' => $assessment->id,
+                        'status' => $reopened ? 'OPEN' : $alert->status,
+                        'acknowledged_at' => $reopened ? null : $alert->acknowledged_at,
+                        'resolved_at' => $reopened ? null : $alert->resolved_at,
+                        'resolution_note' => $reopened ? null : $alert->resolution_note,
+                    ]);
 
-                SecurityAlert::create([
+                    if ($reopened) {
+                        SecurityAlertHistory::query()->create([
+                            'security_alert_id' => $alert->id,
+                            'action' => 'AUTO_REOPEN',
+                            'old_status' => $oldStatus,
+                            'new_status' => 'OPEN',
+                            'notes' => 'Finding ditemukan kembali pada assessment #' . $assessment->id . '.',
+                        ]);
 
-                    /*
-                     * Existing activity relation tidak digunakan
-                     * untuk vulnerability assessment alert.
-                     */
-                    'database_activity_id' =>
-                        null,
+                        return 'reopened';
+                    }
 
-                    /*
-                     * Jika assessment mempunyai connection ID,
-                     * gunakan nilainya.
-                     */
-                    'database_connection_id' =>
-                        $this->getConnectionId(
-                            $assessment
-                        ),
+                    return 'correlated';
+                });
 
-                    'database_name' =>
-                        $databaseName,
+                match ($outcome) {
+                    'created' => $created++,
+                    'correlated' => $correlated++,
+                    'reopened' => $reopened++,
+                    default => $existing++,
+                };
 
-                    'username' =>
-                        $finding->username
-                        ?: null,
+                $label = match ($outcome) {
+                    'created' => 'NEW',
+                    'correlated' => 'CORRELATED',
+                    'reopened' => 'REOPENED',
+                    default => 'EXISTS',
+                };
 
-                    'client_ip' =>
-                        $finding->host
-                        ?: null,
-
-                    'alert_type' =>
-                        $alertType,
-
-                    'severity' =>
-                        strtoupper(
-                            $finding->severity
-                        ),
-
-                    'title' =>
-                        $finding->title,
-
-                    'description' =>
-                        $description,
-
-                    /*
-                     * Evidence kita simpan di query apabila
-                     * tersedia karena schema lama menyediakan
-                     * kolom query.
-                     */
-                    'query' =>
-                        $finding->evidence
-                        ?: null,
-
-                    /*
-                     * Vulnerability finding belum tentu
-                     * mempunyai table_name.
-                     */
-                    'table_name' =>
-                        $finding->table_name
-                        ?? null,
-
-                    'status' =>
-                        'OPEN',
-
-                    'detected_at' =>
-                        now(),
-
-                    'resolved_at' =>
-                        null,
-
-                    'resolution_note' =>
-                        null,
-                ]);
-
-
-                $created++;
-
-
-                /*
-                 * -------------------------------------------------
-                 * OUTPUT
-                 * -------------------------------------------------
-                 */
-
-                $this->info(
-                    '[NEW] [' .
-                    strtoupper(
-                        $finding->severity
-                    ) .
-                    '] ' .
-                    $finding->title
+                $this->{$outcome === 'created' ? 'info' : 'line'}(
+                    '[' . $label . '] [' . strtoupper((string) $finding->severity) . '] ' . $finding->title
                 );
 
             } catch (Throwable $e) {
@@ -467,6 +444,16 @@ class GenerateSecurityAlerts extends Command
         );
 
         $this->line(
+            'Correlated : ' .
+            $correlated
+        );
+
+        $this->line(
+            'Reopened   : ' .
+            $reopened
+        );
+
+        $this->line(
             'Failed     : ' .
             $failed
         );
@@ -531,5 +518,81 @@ class GenerateSecurityAlerts extends Command
 
 
         return null;
+    }
+
+    private function fingerprint(
+        string $alertType,
+        ?int $connectionId,
+        string $databaseName,
+        VulnerabilityFinding $finding,
+        ?string $tableName
+    ): string {
+        $ruleIdentity = trim((string) $finding->rule_code) !== ''
+            ? 'rule:' . $finding->rule_code
+            : 'title:' . $finding->title;
+
+        return hash('sha256', implode('|', [
+            $this->normalize($alertType),
+            (string) ($connectionId ?? ''),
+            $this->normalize($databaseName),
+            $this->normalize($ruleIdentity),
+            $this->normalize($finding->username),
+            $this->normalize($finding->host),
+            $this->normalize($tableName),
+        ]));
+    }
+
+    private function normalize(mixed $value): string
+    {
+        return mb_strtolower(
+            preg_replace('/\s+/', ' ', trim((string) $value)) ?? ''
+        );
+    }
+
+    private function findLegacyAlert(
+        string $alertType,
+        ?int $connectionId,
+        string $databaseName,
+        VulnerabilityFinding $finding,
+        ?string $tableName
+    ): ?SecurityAlert {
+        return SecurityAlert::query()
+            ->whereNull('fingerprint')
+            ->where('alert_type', $alertType)
+            ->when(
+                $connectionId === null,
+                fn ($query) => $query->whereNull('database_connection_id'),
+                fn ($query) => $query->where('database_connection_id', $connectionId)
+            )
+            ->where('database_name', $databaseName)
+            ->where('title', $finding->title)
+            ->when(
+                $finding->username,
+                fn ($query) => $query->where('username', $finding->username),
+                fn ($query) => $query->whereNull('username')
+            )
+            ->when(
+                $finding->host,
+                fn ($query) => $query->where('client_ip', $finding->host),
+                fn ($query) => $query->whereNull('client_ip')
+            )
+            ->when(
+                $tableName,
+                fn ($query) => $query->where('table_name', $tableName),
+                fn ($query) => $query->whereNull('table_name')
+            )
+            ->lockForUpdate()
+            ->first();
+    }
+
+    private function isLegacyOccurrenceFromAssessment(
+        SecurityAlert $alert,
+        VulnerabilityAssessment $assessment
+    ): bool {
+        return $alert->last_assessment_id === null
+            && str_starts_with(
+                (string) $alert->description,
+                '[Assessment #' . $assessment->id . '] '
+            );
     }
 }
