@@ -35,6 +35,8 @@ class SecurityAlert extends Model
 
         'alert_type',
 
+        'fingerprint',
+
         'action',
 
         'rule',
