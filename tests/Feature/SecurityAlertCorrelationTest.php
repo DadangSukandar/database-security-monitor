@@ -151,3 +151,60 @@ it('automatically reopens a resolved alert when the finding recurs', function ()
     expect($alert->fresh()->occurrence_count)->toBe(2)
         ->and($alert->histories()->where('action', 'AUTO_REOPEN')->count())->toBe(1);
 });
+
+it('keeps different findings and security scopes in separate alerts', function () {
+    Notification::fake();
+
+    $primaryConnection = createTestDatabaseConnection();
+    $secondaryConnection = DatabaseConnection::query()->create([
+        'name' => 'Secondary PostgreSQL',
+        'driver' => 'pgsql',
+        'host' => '127.0.0.2',
+        'port' => 5432,
+        'database' => 'guardium',
+        'username' => 'scanner',
+    ]);
+
+    $createFinding = function (
+        DatabaseConnection $connection,
+        string $databaseName,
+        string $ruleCode,
+        string $username
+    ): VulnerabilityAssessment {
+        $assessment = VulnerabilityAssessment::query()->create([
+            'database_connection_id' => $connection->id,
+            'database_name' => $databaseName,
+            'scanned_at' => now(),
+        ]);
+
+        VulnerabilityFinding::query()->create([
+            'vulnerability_assessment_id' => $assessment->id,
+            'rule_code' => $ruleCode,
+            'title' => $ruleCode.' finding',
+            'severity' => 'HIGH',
+            'database_name' => $databaseName,
+            'username' => $username,
+            'host' => 'localhost',
+        ]);
+
+        return $assessment;
+    };
+
+    $assessments = [
+        $createFinding($primaryConnection, 'guardium', 'PGSQL-ACCESS-001', 'postgres'),
+        $createFinding($primaryConnection, 'guardium', 'PGSQL-ACCESS-002', 'postgres'),
+        $createFinding($primaryConnection, 'guardium', 'PGSQL-ACCESS-001', 'application_user'),
+        $createFinding($primaryConnection, 'guardium_archive', 'PGSQL-ACCESS-001', 'postgres'),
+        $createFinding($secondaryConnection, 'guardium', 'PGSQL-ACCESS-001', 'postgres'),
+    ];
+
+    foreach ($assessments as $assessment) {
+        $this->artisan('security:generate-alerts', ['--assessment' => $assessment->id])
+            ->assertSuccessful();
+    }
+
+    expect(SecurityAlert::query()->count())->toBe(5)
+        ->and(SecurityAlert::query()->distinct()->count('fingerprint'))->toBe(5)
+        ->and(SecurityAlert::query()->pluck('occurrence_count')->all())
+        ->each->toBe(1);
+});
