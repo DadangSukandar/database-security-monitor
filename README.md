@@ -1,214 +1,331 @@
-# Database Security Monitoring Platform
+# Database Security Monitor
 
-A Laravel-based database security monitoring and assessment platform inspired by enterprise database security solutions such as IBM Guardium.
+**Database Security Monitor** is an open-source database security monitoring and assessment platform built with Laravel.
 
-This project is being developed as an open-source learning and development project for monitoring databases, discovering database assets, analyzing database activity, detecting security risks, performing vulnerability assessments, and generating security alerts.
+The project provides a centralized interface for discovering database assets, monitoring database activity, identifying security risks, detecting sensitive data, performing vulnerability assessments, managing security findings, and generating security alerts.
 
-> **Project Status:** Active Development  
-> This project is still under development. Features, database structures, APIs, and user interfaces may change.
+The project is inspired by concepts commonly found in enterprise database security platforms while remaining an independent open-source project.
 
----
-
-## Overview
-
-Database Security Monitoring Platform provides a centralized interface for connecting to database servers and performing security-related monitoring and assessment.
-
-The project is designed for:
-
-- Learning database security concepts
-- Database security monitoring
-- Database discovery
-- Database activity analysis
-- Vulnerability assessment
-- Sensitive data discovery
-- Security alert management
-- Security policy management
-- Security auditing
-- Security reporting
-
-The long-term goal is to provide an accessible open-source environment for experimenting with database security monitoring concepts.
+> **Project Status: Active Development**
+>
+> Database Security Monitor is currently under active development. Features, database schemas, security rules, APIs, and user interfaces may change as development continues.
 
 ---
 
-## Features
+## About the Project
+
+Modern applications often depend on multiple databases containing important or sensitive information.
+
+Database administrators and developers need visibility into:
+
+- What databases are available
+- What tables and columns exist
+- Who has access to the database
+- What privileges database users have
+- What queries are being executed
+- What sensitive information may exist
+- What security vulnerabilities are present
+- What security events require attention
+
+Database Security Monitor is being developed to provide these capabilities through a centralized web-based dashboard.
+
+The long-term goal is to create an accessible open-source platform for learning, experimenting with, and implementing database security monitoring concepts.
+
+---
+
+## Key Features
 
 ### Database Connection Management
 
-Manage database server connections from a centralized interface.
+Manage monitored database servers from one interface.
 
 Current database targets include:
 
 - MySQL
 - PostgreSQL
 
-Database credentials are handled through Laravel configuration and encrypted model attributes where implemented.
+Connection information can include:
+
+- Connection name
+- Database driver
+- Host
+- Port
+- Database name
+- Schema
+- Username
+- Password
+- Connection status
+- Last connection time
+- Last scan time
 
 ---
 
-### Database Discovery
+## Database Discovery
 
-Discover database structures including:
+Discover database structures automatically.
+
+The discovery system can collect information about:
 
 - Databases
 - Schemas
 - Tables
 - Columns
 - Data types
-- Estimated rows
-- Database metadata
+- Table types
+- Estimated row counts
+- Database versions
 
-This allows administrators to understand database assets connected to the platform.
+This provides visibility into database assets connected to the monitoring platform.
 
 ---
 
-### Database Explorer
+## Database Explorer
 
-Explore discovered database structures directly from the application.
+Browse discovered databases directly from the application.
 
-The explorer provides visibility into database objects such as:
+The Database Explorer provides visibility into:
 
-- Database names
+- Databases
 - Schemas
 - Tables
 - Columns
-- Table data
+- Column types
+- Table content
+
+This feature is intended to help administrators understand the structure of monitored databases.
 
 ---
 
-### Database Activity Monitoring
+## Database Activity Monitoring
 
-Collect and analyze database activity information.
+Database Security Monitor includes functionality for recording and analyzing database activity.
 
-Activity records can contain information such as:
+Activity information can include:
 
-- Database
+- Database connection
+- Database name
 - Schema
 - Table
-- Database user
-- Client IP
+- Database username
+- Client IP address
 - SQL action
 - SQL query
 - Execution status
+- Error information
 - Execution time
 - Execution timestamp
 
-This module is intended to provide visibility into database operations and suspicious activity.
+The goal is to provide visibility into database operations and potentially suspicious behavior.
 
 ---
 
-### SQL Query Tools
+## SQL Query Tools
 
-The application includes tools for database query testing and analysis.
+The project includes database query tools for development, testing, and analysis.
 
-Features include:
+Current functionality includes:
 
 - SQL Query Runner
-- Query execution results
+- Query results
 - Query history
+- Query execution tracking
 - Database activity logging
 
-> Be careful when enabling query execution against production databases.
+> **Warning**
+>
+> Query execution should only be enabled for authorized users and databases.
+> Extra care should be taken when connecting Database Security Monitor to production systems.
 
 ---
 
-### Database Users & Privileges
+## Database Users
 
-Inspect database users and their privileges to help identify excessive permissions and risky configurations.
+Inspect database accounts discovered from monitored database servers.
 
-Examples include detecting accounts with:
+The system is being developed to provide visibility into:
+
+- Database usernames
+- Account hosts
+- Authentication configuration
+- Account status
+- Administrative accounts
+- Potentially risky database accounts
+
+---
+
+## Database Privileges
+
+Analyze database privileges to help identify excessive or potentially dangerous permissions.
+
+Examples include detection of accounts with:
 
 - Administrative privileges
 - SUPER privileges
 - GRANT privileges
-- Excessive database permissions
-- Potentially unsafe account configurations
+- Database creation privileges
+- User creation privileges
+- File privileges
+- Process privileges
+- Other elevated database permissions
+
+The exact checks depend on the database engine.
 
 ---
 
-### Vulnerability Assessment
+## Vulnerability Assessment
 
-Run security assessments against connected databases.
+Database Security Monitor can perform security assessments against connected databases.
 
-The vulnerability assessment system can generate findings with:
+Assessment results may include:
 
 - Rule code
 - Category
 - Severity
-- Title
+- Finding title
 - Description
 - Recommendation
-- Database
-- User
+- Database name
+- Username
 - Host
 - Evidence
 - Resolution status
 
-Severity levels include:
+Supported severity levels include:
 
-- CRITICAL
-- HIGH
-- MEDIUM
-- LOW
+```text
+CRITICAL
+HIGH
+MEDIUM
+LOW
+```
 
-Assessment results are also used to calculate a database security score.
+Assessment results contribute to the database security score.
 
 ---
 
-### Security Findings
+## Security Score
+
+The Security Score provides a simplified representation of the current security posture.
+
+The score is calculated using detected security findings and their severity.
+
+Security scoring will continue to evolve as additional security rules and assessment capabilities are implemented.
+
+---
+
+## Security Findings
 
 Security findings provide centralized visibility into detected security issues.
 
-Findings can contain:
+A finding may contain:
 
+- Database connection
+- Database name
 - Finding type
 - Category
 - Severity
-- Affected database
-- Affected object
-- Database username
+- Title
 - Description
+- Object type
+- Object name
+- Database username
 - Recommendation
-- Detection time
-- Resolution status
+- Status
+- Detection timestamp
+- Resolution timestamp
+
+Findings can be used by other modules such as security dashboards, alerts, reports, and assessments.
 
 ---
 
-### Security Alerts
+## Security Alerts
 
-Security alerts are designed to notify administrators about security events detected by the monitoring system.
+Security alerts help administrators identify security events that require attention.
 
-The project includes components for:
+Current and planned alert functionality includes:
 
-- Alert generation
-- Alert escalation
+- Automatic alert generation
 - Alert history
-- Alert notifications
-- SLA monitoring
 - Alert acknowledgement
+- Alert escalation
+- SLA monitoring
+- Alert notifications
+- Severity classification
+- Security event tracking
+
+The application also includes console commands and services for security alert processing.
 
 ---
 
-### Security Policies
+## Security Policies
 
-Security policies can be used to define and manage security monitoring rules.
+Security policies provide a foundation for defining database security monitoring rules.
 
-This module is being expanded as development continues.
+The policy system is being developed to support:
+
+- Security rule configuration
+- Monitoring policies
+- Severity configuration
+- Alert conditions
+- Security enforcement workflows
+
+This module will continue to expand during development.
 
 ---
 
-### Sensitive Data Discovery
+## Security Risk Analysis
 
-Scan database metadata and content to help identify potentially sensitive information.
+Database Security Monitor includes functionality for identifying and managing database security risks.
 
-The goal of this module is to help identify data that may require additional protection or monitoring.
+Security risks can be generated from database configuration, users, privileges, activity, or other security assessment results.
 
 ---
 
-### Security Dashboard
+## Sensitive Data Discovery
 
-The dashboard provides an overview of the current security posture.
+The Sensitive Data Discovery module is designed to identify potentially sensitive information stored in monitored databases.
 
-Current metrics include:
+The system can analyze database metadata and data patterns to help identify information that may require additional protection.
+
+Future development will expand classification capabilities for areas such as:
+
+- Personal information
+- Contact information
+- Authentication information
+- Financial information
+- Confidential business information
+- Custom sensitive-data patterns
+
+---
+
+## Security Audit
+
+Security Audit functionality provides structured database security assessments.
+
+The goal of this module is to provide administrators with repeatable security checks and historical assessment information.
+
+---
+
+## Security Reports
+
+Security reports provide a consolidated view of database security information.
+
+Current and planned reporting functionality includes:
+
+- Security assessment reports
+- Finding reports
+- Security comparison reports
+- Printable reports
+- Historical security information
+- Security score information
+
+---
+
+## Dashboard
+
+The main dashboard provides an overview of the monitored environment.
+
+Current dashboard metrics include:
 
 - Total database connections
 - Active database connections
@@ -219,111 +336,141 @@ Current metrics include:
 - Low findings
 - Total open findings
 - Recent security findings
+- Recent database connections
 
 ---
 
-### Teams & Authentication
+## Authentication and Teams
 
-The project includes authentication and team-based functionality.
+Database Security Monitor includes user authentication and team functionality.
 
 Features include:
 
 - User authentication
+- User profiles
+- Security settings
 - Team creation
 - Team membership
 - Team invitations
 - Team switching
 - Team permissions
-- Profile management
-- Security settings
+- Team-aware application navigation
+
+This architecture provides a foundation for multi-user and multi-team environments.
 
 ---
 
-## Technology Stack
+# Technology Stack
 
-The project currently uses:
+Database Security Monitor currently uses:
 
 | Technology | Purpose |
 |---|---|
-| Laravel 13 | Backend framework |
+| Laravel 13 | Backend application framework |
 | PHP 8.5+ | Application runtime |
-| SQLite | Local development database |
-| MySQL | Monitored database target |
-| PostgreSQL | Monitored database target |
-| Blade | Security monitoring interface |
-| React / TypeScript | Authentication and team UI components |
+| SQLite | Local application database |
+| MySQL | Supported monitored database |
+| PostgreSQL | Supported monitored database |
+| Blade | Database security monitoring UI |
+| React | Interactive frontend components |
+| TypeScript | Frontend development |
 | Vite | Frontend build system |
-| PHPUnit / Pest | Automated testing |
+| Pest / PHPUnit | Automated testing |
+| Git | Version control |
 
 ---
 
-## Requirements
+# Requirements
 
-Before installing the project, make sure your environment has:
+Before installing Database Security Monitor, make sure the following software is available:
 
-- PHP 8.5 or compatible version
+- PHP
 - Composer
 - Node.js
 - npm
 - Git
-- Required PHP database extensions
+- SQLite or another supported application database
+- Required PHP PDO database extensions
 
-For MySQL monitoring:
+Recommended development environment:
 
-```bash
-php -m
+```text
+PHP 8.5+
+Laravel 13
+Node.js
+Composer
+Git
 ```
-
-Make sure the MySQL/PDO extension is available.
-
-For PostgreSQL monitoring, make sure the PostgreSQL PDO extension is installed.
 
 ---
 
-## Installation
+# Installation
 
-### 1. Clone the repository
+## 1. Clone the Repository
+
+Clone Database Security Monitor from GitHub:
 
 ```bash
-git clone https://github.com/DadangSukandar/Modipkun.git
-cd Modipkun
+git clone https://github.com/DadangSukandar/database-security-monitor.git
 ```
 
-### 2. Install PHP dependencies
+Enter the project directory:
+
+```bash
+cd database-security-monitor
+```
+
+---
+
+## 2. Install PHP Dependencies
+
+Run:
 
 ```bash
 composer install
 ```
 
-### 3. Install frontend dependencies
+---
+
+## 3. Install Frontend Dependencies
+
+Run:
 
 ```bash
 npm install
 ```
 
-### 4. Create environment configuration
+---
 
-On Linux/macOS:
+## 4. Create Environment File
 
-```bash
-cp .env.example .env
-```
-
-On Windows PowerShell:
+### Windows PowerShell
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-### 5. Generate application key
+### Linux / macOS
+
+```bash
+cp .env.example .env
+```
+
+---
+
+## 5. Generate Application Key
+
+Run:
 
 ```bash
 php artisan key:generate
 ```
 
-### 6. Configure the application database
+---
 
-For local development, SQLite can be used.
+## 6. Configure the Application Database
+
+SQLite is convenient for local development.
 
 Create:
 
@@ -331,39 +478,57 @@ Create:
 database/database.sqlite
 ```
 
-Then configure `.env`:
+On Windows PowerShell:
+
+```powershell
+New-Item database/database.sqlite -ItemType File
+```
+
+Configure `.env`:
 
 ```env
 DB_CONNECTION=sqlite
 ```
 
-### 7. Run migrations
+---
+
+## 7. Run Database Migrations
+
+Run:
 
 ```bash
 php artisan migrate
 ```
 
-### 8. Build frontend assets
+> Do not use `php artisan migrate:fresh` on an existing installation containing data you want to keep.
 
-Development:
+---
+
+## 8. Build Frontend Assets
+
+For development:
 
 ```bash
 npm run dev
 ```
 
-Or production build:
+For a production build:
 
 ```bash
 npm run build
 ```
 
-### 9. Start Laravel
+---
+
+## 9. Start Laravel
+
+Run:
 
 ```bash
 php artisan serve
 ```
 
-The application will normally be available at:
+By default, the application should be available at:
 
 ```text
 http://127.0.0.1:8000
@@ -371,147 +536,261 @@ http://127.0.0.1:8000
 
 ---
 
-## Connecting a Database
+# Development Setup
 
-After starting the application:
+For local development, it is usually useful to run Laravel and Vite in separate terminals.
 
-1. Open the Database Connections page.
-2. Add a database connection.
-3. Select the database driver.
-4. Enter the host and port.
-5. Enter the database name.
-6. Enter a database username.
-7. Enter the database password.
-8. Save the connection.
-9. Test or scan the database using the available security modules.
+### Terminal 1
 
-For security reasons, use a dedicated database account with only the permissions required for monitoring whenever possible.
+```bash
+php artisan serve
+```
+
+### Terminal 2
+
+```bash
+npm run dev
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000
+```
 
 ---
 
-## Testing
+# Connecting a Database
 
-The project includes automated tests for authentication, teams, dashboard functionality, security alerts, findings, routing, pagination, and other application components.
+After starting the application:
 
-Run all tests:
+1. Open **Database Connections**.
+2. Add a new database connection.
+3. Select the database driver.
+4. Enter the database host.
+5. Enter the database port.
+6. Enter the database name.
+7. Enter the database username.
+8. Enter the database password.
+9. Save the connection.
+10. Run the available discovery or security scanning functionality.
+
+---
+
+## MySQL
+
+A typical MySQL connection uses:
+
+```text
+Driver: mysql
+Host: 127.0.0.1
+Port: 3306
+Database: your_database
+Username: monitoring_user
+Password: ********
+```
+
+Make sure PHP has the MySQL PDO extension enabled.
+
+You can inspect PHP modules with:
+
+```bash
+php -m
+```
+
+---
+
+## PostgreSQL
+
+A typical PostgreSQL connection uses:
+
+```text
+Driver: pgsql
+Host: 127.0.0.1
+Port: 5432
+Database: your_database
+Username: monitoring_user
+Password: ********
+```
+
+Make sure PHP has the PostgreSQL PDO extension enabled.
+
+---
+
+# Database Account Security
+
+Whenever possible, create a dedicated monitoring account.
+
+Use the principle of least privilege.
+
+Avoid connecting Database Security Monitor using accounts such as:
+
+```text
+root
+postgres
+administrator
+superuser
+```
+
+unless elevated access is specifically required for a security assessment in an authorized testing environment.
+
+The permissions required depend on which monitoring and assessment features are being used.
+
+---
+
+# Testing
+
+Database Security Monitor includes automated tests for application functionality.
+
+Run the complete test suite:
 
 ```bash
 php artisan test
 ```
 
-You can also run individual test files:
+Run an individual test:
 
 ```bash
 php artisan test tests/Feature/DashboardTest.php
 ```
 
-Before contributing code, make sure the test suite passes.
+The project currently includes tests covering areas such as:
+
+- Authentication
+- Dashboard
+- Teams
+- Team invitations
+- Team members
+- Profile settings
+- Security settings
+- Route integrity
+- Navigation consistency
+- Pagination
+- Security findings
+- Security alerts
+- Alert history
+- Alert notifications
+- Alert SLA behavior
+- Security dashboard analytics
+
+Some tests may be skipped when optional features such as two-factor authentication are disabled.
 
 ---
 
-## Security
+# Useful Artisan Commands
 
-This application interacts with database credentials and potentially sensitive database information.
+Clear Laravel caches:
 
-### Never commit secrets
-
-Do not commit:
-
-```text
-.env
-database/*.sqlite
-credentials
-API keys
-database passwords
-private keys
-production configuration
+```bash
+php artisan optimize:clear
 ```
 
-The repository `.gitignore` is configured to exclude common sensitive and generated files.
+View application routes:
 
-### Recommended database permissions
-
-For monitoring and discovery, prefer a dedicated read-only or least-privilege database account.
-
-Avoid connecting using:
-
-```text
-root
-superuser
-administrator
+```bash
+php artisan route:list
 ```
 
-unless it is strictly required in an isolated testing environment.
+Check migration status:
 
-### Production Warning
+```bash
+php artisan migrate:status
+```
 
-This project is currently under active development.
+Run tests:
 
-Do not deploy it as a production security control without performing your own:
+```bash
+php artisan test
+```
 
-- Security review
-- Permission review
-- Threat modeling
-- Penetration testing
-- Database privilege review
-- Configuration review
+Open Laravel Tinker:
 
-The project should not currently be considered a replacement for commercial database security products.
-
----
-
-## Project Structure
-
-Important directories:
-
-```text
-app/
-├── Console/Commands/
-├── Http/Controllers/
-├── Models/
-├── Notifications/
-├── Observers/
-├── Policies/
-└── Services/
-
-database/
-├── factories/
-├── migrations/
-└── seeders/
-
-resources/
-├── css/
-├── js/
-└── views/
-
-routes/
-├── console.php
-├── settings.php
-└── web.php
-
-tests/
-├── Feature/
-└── Unit/
+```bash
+php artisan tinker
 ```
 
 ---
 
-## Main Modules
+# Project Structure
 
-Current development includes:
+Important project directories include:
 
 ```text
-Dashboard
+database-security-monitor/
 │
-├── Database Connections
-├── Database Discovery
-├── Database Explorer
-├── Database Activity
-├── Sensitive Data Discovery
-├── Database Users
-├── Database Privileges
-├── SQL Query
-├── Query History
+├── app/
+│   ├── Actions/
+│   ├── Console/
+│   │   └── Commands/
+│   ├── Http/
+│   │   ├── Controllers/
+│   │   ├── Middleware/
+│   │   └── Requests/
+│   ├── Models/
+│   ├── Notifications/
+│   ├── Observers/
+│   ├── Policies/
+│   ├── Providers/
+│   └── Services/
+│
+├── bootstrap/
+├── config/
+│
+├── database/
+│   ├── factories/
+│   ├── migrations/
+│   └── seeders/
+│
+├── public/
+│
+├── resources/
+│   ├── css/
+│   ├── js/
+│   └── views/
+│
+├── routes/
+│   ├── console.php
+│   ├── settings.php
+│   └── web.php
+│
+├── storage/
+│
+├── tests/
+│   ├── Feature/
+│   └── Unit/
+│
+├── .env.example
+├── artisan
+├── composer.json
+├── package.json
+└── README.md
+```
+
+---
+
+# Application Modules
+
+The current application architecture includes:
+
+```text
+Database Security Monitor
+│
+├── Dashboard
+│
+├── Database Management
+│   ├── Database Connections
+│   ├── Database Discovery
+│   ├── Database Explorer
+│   ├── Database Users
+│   └── Database Privileges
+│
+├── Activity Monitoring
+│   ├── Database Activity
+│   ├── SQL Query
+│   └── Query History
+│
+├── Data Security
+│   └── Sensitive Data Discovery
 │
 ├── Security
 │   ├── Security Dashboard
@@ -522,120 +801,332 @@ Dashboard
 │   ├── Security Audit
 │   └── Security Reports
 │
-└── Vulnerability Assessment
+├── Assessment
+│   └── Vulnerability Assessment
+│
+└── Administration
+    ├── Authentication
+    ├── Teams
+    ├── Team Members
+    ├── Team Invitations
+    └── User Settings
 ```
 
 ---
 
-## Roadmap
+# Security Architecture
 
-Planned areas of development include:
+The project currently contains dedicated services and components for database security functionality.
 
-- Improved database activity monitoring
-- Additional vulnerability assessment rules
-- PostgreSQL security assessment improvements
-- Improved security scoring
-- Advanced sensitive data classification
-- Security policy enforcement
-- Alert correlation
-- Improved alert notification channels
-- Scheduled vulnerability scanning
-- Historical security analytics
-- Security trend visualization
-- Improved security reports
-- Role-based access control improvements
-- Additional database engines
-- REST API
-- Docker deployment
-- Improved documentation
-- Production security hardening
+Examples include:
+
+```text
+DatabaseConnectorService
+DatabaseDiscoveryService
+DatabaseActivityLogger
+SensitiveDataDiscoveryService
+SecurityRiskScannerService
+SecurityAuditScanner
+SecurityScoreService
+SecurityAlertService
+SecurityAlertDetectionService
+SecurityAlertNotificationService
+```
+
+This separation allows security scanning and monitoring logic to evolve independently from controllers and presentation logic.
 
 ---
 
-## Contributing
+# Security
+
+Because this application works with database systems and database credentials, security must be treated carefully.
+
+## Never Commit Secrets
+
+Never commit:
+
+```text
+.env
+database passwords
+API keys
+private keys
+production credentials
+database dumps
+production SQLite databases
+authentication tokens
+```
+
+Files such as these should remain outside version control.
+
+---
+
+## Environment Configuration
+
+`.env.example` may be committed because it should contain only example configuration.
+
+The real:
+
+```text
+.env
+```
+
+must never contain credentials that are pushed to a public repository.
+
+---
+
+## SQLite
+
+Local SQLite databases may contain:
+
+- Users
+- Password hashes
+- Database connection information
+- Security findings
+- Alerts
+- Query history
+- Other application information
+
+For that reason, actual SQLite database files should not be committed to a public repository.
+
+---
+
+# Production Usage
+
+Database Security Monitor is currently an actively developed project.
+
+Before using it in a production environment, perform your own:
+
+- Security review
+- Code review
+- Authentication review
+- Authorization review
+- Database privilege review
+- Threat modeling
+- Penetration testing
+- Dependency review
+- Configuration review
+- Backup planning
+- Logging review
+- Network security review
+
+This project should not currently be considered a drop-in replacement for a commercial enterprise database security product.
+
+---
+
+# Roadmap
+
+Planned areas of development include:
+
+- [ ] Improved real-time database activity monitoring
+- [ ] Additional MySQL vulnerability rules
+- [ ] Expanded PostgreSQL vulnerability assessment
+- [ ] Improved database security scoring
+- [ ] Advanced sensitive data classification
+- [ ] Custom sensitive-data detection patterns
+- [ ] Security policy enforcement
+- [ ] Advanced alert correlation
+- [ ] Additional notification channels
+- [ ] Scheduled security scanning
+- [ ] Historical security analytics
+- [ ] Security trend visualization
+- [ ] Improved security reports
+- [ ] Role-based access control improvements
+- [ ] Multi-team security isolation improvements
+- [ ] Additional database engines
+- [ ] REST API
+- [ ] API authentication
+- [ ] Docker support
+- [ ] Deployment documentation
+- [ ] Improved user documentation
+- [ ] Security rule documentation
+- [ ] Production security hardening
+
+---
+
+# Contributing
 
 Contributions are welcome.
 
-If you want to contribute:
+You can contribute by:
 
-1. Fork the repository.
-2. Create a feature branch.
+- Reporting bugs
+- Improving documentation
+- Adding tests
+- Improving the UI
+- Adding database support
+- Creating vulnerability rules
+- Improving sensitive-data detection
+- Improving security reports
+- Improving performance
+- Reviewing security-related code
+
+---
+
+## Contribution Workflow
+
+### 1. Fork the repository
+
+Fork the project to your GitHub account.
+
+### 2. Clone your fork
+
+```bash
+git clone https://github.com/YOUR-USERNAME/database-security-monitor.git
+```
+
+### 3. Create a feature branch
 
 ```bash
 git checkout -b feature/my-feature
 ```
 
-3. Make your changes.
-4. Run the tests.
+### 4. Make your changes
+
+Implement and test the feature.
+
+### 5. Run tests
 
 ```bash
 php artisan test
 ```
 
-5. Commit your changes.
+### 6. Commit
 
 ```bash
 git add .
 git commit -m "Add my feature"
 ```
 
-6. Push your branch.
+### 7. Push
 
 ```bash
 git push origin feature/my-feature
 ```
 
-7. Open a Pull Request.
+### 8. Open a Pull Request
 
-When contributing security rules or vulnerability checks, please explain:
+Open a Pull Request explaining the purpose of the change.
 
-- What the rule detects
-- Why it is considered a security risk
-- Supported database engine
+---
+
+# Contributing Security Rules
+
+When contributing vulnerability or security detection rules, please document:
+
+- Rule code
+- Database engine
+- Security category
 - Severity
+- What the rule detects
+- Why the condition is a security risk
+- Detection logic
+- Possible false positives
 - Recommended remediation
 - How the rule was tested
 
----
-
-## Development Status
-
-This project is actively being developed.
-
-Some modules may be experimental or incomplete. Breaking changes may occur while the architecture and security monitoring capabilities are improved.
-
-Bug reports, documentation improvements, testing, security rule contributions, and feature proposals are welcome.
+Security rules should avoid destructive database operations.
 
 ---
 
-## Disclaimer
+# Bug Reports
 
-This project is intended for educational, research, development, and authorized database security testing purposes.
+When reporting a bug, please provide information such as:
 
-Only connect the application to databases that you own or have explicit authorization to access.
+```text
+Operating System:
+PHP Version:
+Laravel Version:
+Database Engine:
+Database Version:
 
-The maintainers and contributors are not responsible for unauthorized use, data loss, service disruption, or damage caused by improper use of this software.
+Steps to reproduce:
+
+Expected behavior:
+
+Actual behavior:
+
+Error message:
+```
+
+Do **not** include passwords, private keys, API tokens, or other secrets in bug reports.
 
 ---
 
-## License
+# Development Status
 
-A license has not yet been finalized.
+Database Security Monitor is currently under active development.
 
-Before using this project in commercial or redistributed software, check the repository for the latest licensing information.
+Some functionality may be:
+
+- Experimental
+- Incomplete
+- Changed between versions
+- Intended primarily for development and learning environments
+
+Breaking changes may occur while the architecture continues to evolve.
 
 ---
 
-## Author
+# Responsible Use
+
+Database Security Monitor is intended for:
+
+- Educational use
+- Database security research
+- Development
+- Security laboratories
+- Authorized database assessments
+- Authorized security testing
+
+Only connect this application to databases and systems that you own or have explicit authorization to access.
+
+---
+
+# Disclaimer
+
+Database Security Monitor is an independent open-source project.
+
+It is **not affiliated with, endorsed by, sponsored by, or an official product of IBM**.
+
+References to database security concepts or enterprise database security products are provided only to explain the type of security capabilities this project is exploring.
+
+The maintainers and contributors are not responsible for unauthorized access, data loss, service disruption, security incidents, or damage resulting from improper use of this software.
+
+---
+
+# License
+
+A project license has not yet been finalized.
+
+Until a license is added, users should not assume that all forms of redistribution, modification, or commercial use are automatically permitted.
+
+A formal open-source license should be added before wider distribution of the project.
+
+---
+
+# Author
 
 Developed and maintained by **DadangSukandar**.
 
-Contributions from the open-source community are welcome.
+Community contributions are welcome.
 
 ---
 
-## Acknowledgements
+# Support the Project
 
-This project is inspired by concepts found in enterprise database security and monitoring platforms, including IBM Guardium.
+If you find Database Security Monitor useful, you can support development by:
 
-This project is an independent project and is **not affiliated with, endorsed by, or an official product of IBM**.
+- Testing the project
+- Reporting bugs
+- Suggesting improvements
+- Improving documentation
+- Contributing code
+- Adding security assessment rules
+- Reviewing existing functionality
+- Sharing the project with other developers
+
+---
+
+## Database Security Monitor
+
+**Open-source database visibility, monitoring, and security assessment for learning, development, and authorized security environments.**
