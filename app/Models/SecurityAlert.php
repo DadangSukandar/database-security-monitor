@@ -53,6 +53,14 @@ class SecurityAlert extends Model
 
         'status',
 
+        'occurrence_count',
+
+        'first_seen_at',
+
+        'last_seen_at',
+
+        'last_assessment_id',
+
         'detected_at',
 
         'acknowledged_at',
@@ -68,6 +76,14 @@ class SecurityAlert extends Model
      * =========================================================
      */
     protected $casts = [
+
+        'occurrence_count' => 'integer',
+
+        'last_assessment_id' => 'integer',
+
+        'first_seen_at' => 'datetime',
+
+        'last_seen_at' => 'datetime',
 
         'detected_at' => 'datetime',
 

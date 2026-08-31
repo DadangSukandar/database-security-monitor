@@ -2,10 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Models\SecurityAlertHistory;
 use App\Models\SecurityAlert;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class GenerateSecurityAlerts extends Command
@@ -175,6 +177,10 @@ class GenerateSecurityAlerts extends Command
          */
 
         $created = 0;
+
+        $correlated = 0;
+
+        $reopened = 0;
 
         $existing = 0;
 
