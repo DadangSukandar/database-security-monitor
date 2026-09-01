@@ -31,7 +31,7 @@ return new class extends Migration
 
             $table->unique([
                 'discovered_table_id',
-                'name'
+                'name',
             ]);
         });
     }

@@ -40,8 +40,24 @@
         |--------------------------------------------------------------------------
         */
 
+        html,
+        body {
+            width: 100%;
+            min-width: 100%;
+            min-height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
         .app {
             display: flex;
+            width: 100%;
+            min-width: 100%;
             min-height: 100vh;
         }
 
@@ -114,8 +130,10 @@
         */
 
         .main {
-            flex: 1;
+            flex: 1 1 auto;
             min-width: 0;
+            width: calc(100% - 250px);
+            min-height: 100vh;
         }
 
         .topbar {
@@ -149,7 +167,10 @@
         }
 
         .content {
+            width: 100%;
+            max-width: none;
             padding: 28px;
+            margin: 0;
         }
 
         /*
@@ -485,6 +506,10 @@
 
             .sidebar {
                 width: 70px;
+            }
+
+            .main {
+                width: calc(100% - 70px);
             }
 
             .brand {

@@ -22,7 +22,6 @@ return new class extends Migration
                 ->constrained('database_connections')
                 ->cascadeOnDelete();
 
-
             /*
             |--------------------------------------------------------------------------
             | User / Access
@@ -32,7 +31,6 @@ return new class extends Migration
             $table->string('username')->nullable();
 
             $table->string('host')->nullable();
-
 
             /*
             |--------------------------------------------------------------------------
@@ -48,7 +46,6 @@ return new class extends Migration
 
             $table->string('column_name')->nullable();
 
-
             /*
             |--------------------------------------------------------------------------
             | Privilege
@@ -60,7 +57,6 @@ return new class extends Migration
             $table->boolean('is_grantable')
                 ->default(false);
 
-
             /*
             |--------------------------------------------------------------------------
             | Sensitive Data
@@ -70,7 +66,6 @@ return new class extends Migration
             $table->string('sensitive_category')->nullable();
 
             $table->string('sensitive_rule')->nullable();
-
 
             /*
             |--------------------------------------------------------------------------
@@ -83,7 +78,6 @@ return new class extends Migration
 
             $table->text('risk_reason')->nullable();
 
-
             /*
             |--------------------------------------------------------------------------
             | Status
@@ -92,7 +86,6 @@ return new class extends Migration
 
             $table->boolean('is_resolved')
                 ->default(false);
-
 
             /*
             |--------------------------------------------------------------------------
@@ -104,7 +97,6 @@ return new class extends Migration
                 ->nullable();
 
             $table->timestamps();
-
 
             /*
             |--------------------------------------------------------------------------
@@ -131,7 +123,6 @@ return new class extends Migration
             ]);
         });
     }
-
 
     public function down(): void
     {

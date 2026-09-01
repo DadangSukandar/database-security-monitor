@@ -20,4 +20,9 @@ class SecurityAlertHistory extends Model
     {
         return $this->belongsTo(SecurityAlert::class, 'security_alert_id');
     }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

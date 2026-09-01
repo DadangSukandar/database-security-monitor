@@ -28,7 +28,7 @@ return new class extends Migration
             $table->unique([
                 'discovered_database_id',
                 'schema_name',
-                'name'
+                'name',
             ]);
         });
     }

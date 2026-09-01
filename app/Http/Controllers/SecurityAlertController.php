@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\SecurityAlert;
+use App\Services\SecurityAlertAssignmentService;
+use App\Services\SecurityAlertInvestigationService;
 use App\Services\SecurityAlertLifecycleService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -110,6 +113,7 @@ class SecurityAlertController extends Controller
                 [
                     'OPEN',
                     'ACKNOWLEDGED',
+                    'INVESTIGATING',
                     'RESOLVED',
                 ],
                 true
@@ -184,6 +188,12 @@ class SecurityAlertController extends Controller
                 'ACKNOWLEDGED'
             )->count();
 
+        $investigatingAlerts =
+            SecurityAlert::query()->canonical()->where(
+                'status',
+                'INVESTIGATING'
+            )->count();
+
         $resolvedAlerts =
             SecurityAlert::query()->canonical()->where(
                 'status',
@@ -249,6 +259,7 @@ class SecurityAlertController extends Controller
                 'totalAlerts',
                 'openAlerts',
                 'acknowledgedAlerts',
+                'investigatingAlerts',
                 'resolvedAlerts',
 
                 'criticalAlerts',
@@ -265,18 +276,34 @@ class SecurityAlertController extends Controller
      * SHOW
      * =========================================================
      */
-    public function show(SecurityAlert $alert): View
-    {
+    public function show(
+        Request $request,
+        SecurityAlert $alert
+    ): View {
         $alert->load([
             'databaseConnection',
             'databaseActivity',
-            'histories',
+            'histories.user',
+            'assignedTo',
         ]);
 
-        return view(
-            'security-alerts.show',
-            compact('alert')
-        );
+        $teamMembers = collect();
+
+        if ($alert->canonical_alert_id === null) {
+            $currentTeam = $request->user()?->currentTeam;
+
+            if ($currentTeam !== null) {
+                $teamMembers = $currentTeam
+                    ->members()
+                    ->orderBy('users.name')
+                    ->get();
+            }
+        }
+
+        return view('security-alerts.show', [
+            'alert' => $alert,
+            'teamMembers' => $teamMembers,
+        ]);
     }
 
     /**
@@ -287,8 +314,7 @@ class SecurityAlertController extends Controller
     public function acknowledge(
         SecurityAlert $alert,
         SecurityAlertLifecycleService $lifecycle
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         try {
             $lifecycle->acknowledge($alert, auth()->id());
         } catch (Throwable $exception) {
@@ -299,6 +325,168 @@ class SecurityAlertController extends Controller
             'success',
             'Security alert berhasil di-acknowledge.'
         );
+    }
+
+    /**
+     * =========================================================
+     * START INVESTIGATION
+     * =========================================================
+     */
+    public function investigate(
+        Request $request,
+        SecurityAlert $alert,
+        SecurityAlertLifecycleService $lifecycle
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'investigation_note' => [
+                'nullable',
+                'string',
+                'max:5000',
+            ],
+        ]);
+
+        try {
+            $lifecycle->investigate(
+                $alert,
+                $validated['investigation_note'] ?? null,
+                auth()->id()
+            );
+
+            return back()->with(
+                'success',
+                'Investigasi security alert berhasil dimulai.'
+            );
+        } catch (Throwable $e) {
+            return back()->withErrors([
+                'alert' => 'Gagal memulai investigasi: '.
+                    $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * =========================================================
+     * ADD INVESTIGATION NOTE
+     * =========================================================
+     */
+    public function addInvestigationNote(
+        Request $request,
+        SecurityAlert $alert,
+        SecurityAlertInvestigationService $investigation
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'investigation_note' => [
+                'required',
+                'string',
+                'max:5000',
+            ],
+        ]);
+
+        try {
+            $investigation->addNote(
+                $alert,
+                $validated['investigation_note'],
+                $request->user()->id
+            );
+
+            return back()->with(
+                'success',
+                'Catatan investigasi berhasil ditambahkan.'
+            );
+        } catch (Throwable $e) {
+            return back()->withErrors([
+                'alert' => 'Gagal menambahkan catatan investigasi: '.
+                    $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * =========================================================
+     * ASSIGN / REASSIGN
+     * =========================================================
+     */
+    public function assign(
+        Request $request,
+        SecurityAlert $alert,
+        SecurityAlertAssignmentService $assignment
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'assigned_to_user_id' => [
+                'required',
+                'integer',
+                'exists:users,id',
+            ],
+        ]);
+
+        $actor = $request->user();
+        $currentTeam = $actor->currentTeam;
+
+        if ($currentTeam === null) {
+            throw ValidationException::withMessages([
+                'assigned_to_user_id' => 'Anda tidak memiliki current team.',
+            ]);
+        }
+
+        $assignee = $currentTeam
+            ->members()
+            ->where(
+                'users.id',
+                $validated['assigned_to_user_id']
+            )
+            ->first();
+
+        if ($assignee === null) {
+            throw ValidationException::withMessages([
+                'assigned_to_user_id' => 'PIC harus merupakan anggota current team.',
+            ]);
+        }
+
+        try {
+            $assignment->assign(
+                $alert,
+                $assignee,
+                $actor->id
+            );
+
+            return back()->with(
+                'success',
+                'PIC security alert berhasil diperbarui.'
+            );
+        } catch (Throwable $e) {
+            return back()->withErrors([
+                'alert' => 'Gagal assign security alert: '.
+                    $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * =========================================================
+     * UNASSIGN
+     * =========================================================
+     */
+    public function unassign(
+        Request $request,
+        SecurityAlert $alert,
+        SecurityAlertAssignmentService $assignment
+    ): RedirectResponse {
+        try {
+            $assignment->unassign(
+                $alert,
+                $request->user()->id
+            );
+
+            return back()->with(
+                'success',
+                'PIC security alert berhasil dilepas.'
+            );
+        } catch (Throwable $e) {
+            return back()->withErrors([
+                'alert' => 'Gagal unassign security alert: '.
+                    $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -349,8 +537,7 @@ class SecurityAlertController extends Controller
     public function reopen(
         SecurityAlert $alert,
         SecurityAlertLifecycleService $lifecycle
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         try {
 
             $lifecycle->reopen($alert, auth()->id());
@@ -368,5 +555,4 @@ class SecurityAlertController extends Controller
             ]);
         }
     }
-
 }

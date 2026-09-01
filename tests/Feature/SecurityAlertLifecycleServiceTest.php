@@ -2,6 +2,7 @@
 
 use App\Models\SecurityAlert;
 use App\Models\SecurityAlertHistory;
+use App\Models\User;
 use App\Services\SecurityAlertLifecycleService;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -59,6 +60,109 @@ it('supports investigating and resolution through explicit transitions', functio
         ->toContain('START_INVESTIGATION', 'RESOLVE');
 });
 
+it('starts investigation through the controller and records the authenticated user', function () {
+    $user = User::factory()->create();
+
+    $alert = createLifecycleAlert();
+
+    $this->actingAs($user)
+        ->post(route('security-alerts.investigate', $alert), [
+            'investigation_note' => 'Reviewing excessive database privileges.',
+        ])
+        ->assertSessionHasNoErrors();
+
+    $investigating = $alert->fresh();
+
+    expect($investigating->status)->toBe('INVESTIGATING')
+        ->and($investigating->acknowledged_at)->not->toBeNull();
+
+    $this->assertDatabaseHas('security_alert_histories', [
+        'security_alert_id' => $alert->id,
+        'action' => 'START_INVESTIGATION',
+        'old_status' => 'OPEN',
+        'new_status' => 'INVESTIGATING',
+        'notes' => 'Reviewing excessive database privileges.',
+        'user_id' => $user->id,
+    ]);
+});
+
+it('starts investigation from acknowledged status and keeps the authenticated actor', function () {
+    $user = User::factory()->create();
+
+    $alert = createLifecycleAlert();
+
+    app(SecurityAlertLifecycleService::class)
+        ->acknowledge($alert);
+
+    $acknowledgedAt = $alert->fresh()->acknowledged_at;
+
+    $this->actingAs($user)
+        ->post(route('security-alerts.investigate', $alert), [
+            'investigation_note' => 'Investigating privilege escalation.',
+        ])
+        ->assertSessionHasNoErrors();
+
+    $investigating = $alert->fresh();
+
+    expect($investigating->status)->toBe('INVESTIGATING')
+        ->and($investigating->acknowledged_at->equalTo($acknowledgedAt))->toBeTrue();
+
+    $this->assertDatabaseHas('security_alert_histories', [
+        'security_alert_id' => $alert->id,
+        'action' => 'START_INVESTIGATION',
+        'old_status' => 'ACKNOWLEDGED',
+        'new_status' => 'INVESTIGATING',
+        'notes' => 'Investigating privilege escalation.',
+        'user_id' => $user->id,
+    ]);
+});
+
+it('rejects investigation for resolved and historical duplicate alerts', function () {
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user);
+
+    $canonical = createLifecycleAlert();
+
+    app(SecurityAlertLifecycleService::class)->resolve(
+        $canonical,
+        'Issue remediated.'
+    );
+
+    $duplicate = createLifecycleAlert([
+        'canonical_alert_id' => $canonical->id,
+        'consolidated_at' => now(),
+    ]);
+
+    $this->post(
+        route('security-alerts.investigate', $canonical),
+        [
+            'investigation_note' => 'Should not be allowed.',
+        ]
+    )->assertSessionHasErrors('alert');
+
+    $this->post(
+        route('security-alerts.investigate', $duplicate),
+        [
+            'investigation_note' => 'Should not be allowed.',
+        ]
+    )->assertSessionHasErrors('alert');
+
+    expect($canonical->fresh()->status)->toBe('RESOLVED')
+        ->and($duplicate->fresh()->status)->toBe('OPEN')
+        ->and(
+            $canonical->histories()
+                ->where('action', 'START_INVESTIGATION')
+                ->count()
+        )->toBe(0)
+        ->and(
+            $duplicate->histories()
+                ->where('action', 'START_INVESTIGATION')
+                ->count()
+        )->toBe(0);
+});
+
 it('manually reopens only resolved alerts and restarts the current SLA cycle', function () {
     $firstSeenAt = now()->subDay()->startOfSecond();
     $lastSeenAt = now()->subHours(2)->startOfSecond();
@@ -99,9 +203,9 @@ it('rejects invalid and repeated lifecycle transitions', function () {
     $lifecycle->acknowledge($alert);
 
     expect(fn () => $lifecycle->acknowledge($alert->fresh()))
-        ->toThrow(\DomainException::class, 'ACKNOWLEDGED -> ACKNOWLEDGED')
+        ->toThrow(DomainException::class, 'ACKNOWLEDGED -> ACKNOWLEDGED')
         ->and(fn () => $lifecycle->reopen($alert->fresh()))
-        ->toThrow(\DomainException::class, 'ACKNOWLEDGED -> OPEN')
+        ->toThrow(DomainException::class, 'ACKNOWLEDGED -> OPEN')
         ->and($alert->histories()->count())->toBe(1);
 });
 
@@ -136,6 +240,10 @@ it('rejects lifecycle changes to historical duplicate alerts', function () {
     ]);
     $before = $duplicate->fresh()->getAttributes();
 
+    $user = User::factory()->create();
+
+    $this->actingAs($user);
+
     $this->post(route('security-alerts.acknowledge', $duplicate))
         ->assertSessionHasErrors('alert');
 
@@ -147,4 +255,92 @@ it('rejects lifecycle changes to historical duplicate alerts', function () {
 
     expect($canonical->fresh()->status)->toBe('ACKNOWLEDGED')
         ->and($canonical->histories()->where('action', 'ACKNOWLEDGE')->count())->toBe(1);
+});
+
+it('rejects invalid transitions from a resolved alert', function () {
+    $alert = createLifecycleAlert();
+
+    $lifecycle = app(SecurityAlertLifecycleService::class);
+
+    $lifecycle->resolve(
+        $alert,
+        'Issue remediated.'
+    );
+
+    $resolved = $alert->fresh();
+
+    expect($resolved->status)->toBe('RESOLVED')
+        ->and(fn () => $lifecycle->acknowledge($resolved))
+        ->toThrow(
+            DomainException::class,
+            'RESOLVED -> ACKNOWLEDGED'
+        )
+        ->and(fn () => $lifecycle->resolve(
+            $resolved,
+            'Second resolution attempt.'
+        ))
+        ->toThrow(
+            DomainException::class,
+            'RESOLVED -> RESOLVED'
+        );
+
+    expect($alert->fresh()->status)->toBe('RESOLVED')
+        ->and(
+            $alert->histories()
+                ->where('action', 'RESOLVE')
+                ->count()
+        )->toBe(1);
+});
+
+it('prevents guests from mutating the security alert lifecycle', function () {
+    $open = createLifecycleAlert([
+        'status' => 'OPEN',
+        'canonical_alert_id' => null,
+    ]);
+
+    $resolved = createLifecycleAlert([
+        'status' => 'RESOLVED',
+        'canonical_alert_id' => null,
+        'resolved_at' => now(),
+        'resolution_note' => 'Previously resolved.',
+    ]);
+
+    $this->post(
+        route('security-alerts.acknowledge', $open)
+    )->assertRedirect();
+
+    $this->post(
+        route('security-alerts.investigate', $open),
+        [
+            'investigation_note' => 'Unauthorized investigation.',
+        ]
+    )->assertRedirect();
+
+    $this->post(
+        route('security-alerts.resolve', $open),
+        [
+            'resolution_note' => 'Unauthorized resolution.',
+        ]
+    )->assertRedirect();
+
+    $this->post(
+        route('security-alerts.reopen', $resolved)
+    )->assertRedirect();
+
+    $open->refresh();
+    $resolved->refresh();
+
+    expect($open->status)
+        ->toBe('OPEN')
+        ->and($resolved->status)
+        ->toBe('RESOLVED');
+
+    expect(
+        SecurityAlertHistory::query()
+            ->whereIn('security_alert_id', [
+                $open->id,
+                $resolved->id,
+            ])
+            ->count()
+    )->toBe(0);
 });

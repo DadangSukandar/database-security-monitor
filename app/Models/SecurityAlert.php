@@ -75,6 +75,10 @@ class SecurityAlert extends Model
         'resolved_at',
 
         'resolution_note',
+
+        'assigned_to_user_id',
+
+        'assigned_at',
     ];
 
     /**
@@ -103,6 +107,8 @@ class SecurityAlert extends Model
         'acknowledged_at' => 'datetime',
 
         'resolved_at' => 'datetime',
+
+        'assigned_at' => 'datetime',
     ];
 
     /**
@@ -300,5 +306,13 @@ class SecurityAlert extends Model
     public function hasBreachedResponseSla(?CarbonInterface $at = null): bool
     {
         return $this->responseSlaStatus($at) === 'BREACHED';
+    }
+
+    public function assignedTo(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'assigned_to_user_id'
+        );
     }
 }

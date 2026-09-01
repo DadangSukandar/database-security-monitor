@@ -158,6 +158,62 @@ it('automatically reopens a resolved alert when the finding recurs', function ()
         ->and($alert->histories()->where('action', 'AUTO_REOPEN')->count())->toBe(1);
 });
 
+it('does not restart the SLA cycle when an open alert recurs', function () {
+    Notification::fake();
+
+    $connection = createTestDatabaseConnection();
+
+    $firstSeenAt = now()
+        ->subHours(2)
+        ->startOfSecond();
+
+    $firstAssessment = createAssessmentFinding(
+        $connection,
+        'PGSQL-SLA-001',
+        'Recurring open security finding',
+        'HIGH',
+        $firstSeenAt
+    );
+
+    $this->artisan('security:generate-alerts', [
+        '--assessment' => $firstAssessment->id,
+    ])->assertSuccessful();
+
+    $alert = SecurityAlert::query()->sole();
+
+    $originalSlaStartedAt = $alert->sla_started_at;
+    $originalFirstSeenAt = $alert->first_seen_at;
+
+    expect($originalSlaStartedAt)->not->toBeNull()
+        ->and($originalSlaStartedAt->equalTo($firstSeenAt))->toBeTrue();
+
+    $secondSeenAt = now()
+        ->startOfSecond();
+
+    $secondAssessment = createAssessmentFinding(
+        $connection,
+        'PGSQL-SLA-001',
+        'Recurring open security finding',
+        'HIGH',
+        $secondSeenAt
+    );
+
+    $this->artisan('security:generate-alerts', [
+        '--assessment' => $secondAssessment->id,
+    ])->assertSuccessful();
+
+    $correlated = $alert->fresh();
+
+    expect(SecurityAlert::query()->count())->toBe(1)
+        ->and($correlated->status)->toBe('OPEN')
+        ->and($correlated->occurrence_count)->toBe(2)
+        ->and($correlated->last_assessment_id)->toBe($secondAssessment->id)
+        ->and($correlated->first_seen_at->equalTo($originalFirstSeenAt))->toBeTrue()
+        ->and($correlated->last_seen_at->equalTo($secondSeenAt))->toBeTrue()
+        ->and($correlated->sla_started_at->equalTo($originalSlaStartedAt))->toBeTrue()
+        ->and($correlated->histories()->where('action', 'AUTO_REOPEN')->count())->toBe(0);
+});
+
 it('keeps different findings and security scopes in separate alerts', function () {
     Notification::fake();
 

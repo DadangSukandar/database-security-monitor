@@ -98,7 +98,7 @@
 
     <div style="
         display:grid;
-        grid-template-columns:repeat(6,1fr);
+        grid-template-columns:repeat(7,1fr);
         gap:14px;
         margin-bottom:20px;
     ">
@@ -108,6 +108,7 @@
                 ['label' => 'TOTAL', 'value' => $totalAlerts ?? 0, 'color' => '#212529'],
                 ['label' => 'OPEN', 'value' => $openAlerts ?? 0, 'color' => '#842029'],
                 ['label' => 'ACKNOWLEDGED', 'value' => $acknowledgedAlerts ?? 0, 'color' => '#664d03'],
+                ['label' => 'INVESTIGATING', 'value' => $investigatingAlerts ?? 0, 'color' => '#084298'],
                 ['label' => 'RESOLVED', 'value' => $resolvedAlerts ?? 0, 'color' => '#0f5132'],
                 ['label' => 'CRITICAL', 'value' => $criticalAlerts ?? 0, 'color' => '#842029'],
                 ['label' => 'HIGH', 'value' => $highAlerts ?? 0, 'color' => '#984c0c'],
@@ -247,7 +248,7 @@
                     "
                 >
                     <option value="">All</option>
-                    @foreach(['OPEN','ACKNOWLEDGED','RESOLVED'] as $status)
+                    @foreach(['OPEN','ACKNOWLEDGED','INVESTIGATING','RESOLVED'] as $status)
                         <option
                             value="{{ $status }}"
                             @selected(request('status') === $status)
@@ -414,6 +415,20 @@
                             $severity = strtoupper($alert->severity ?? 'LOW');
                             $status = strtoupper($alert->status ?? 'OPEN');
                             $slaStatus = $alert->responseSlaStatus();
+
+                            $statusColor = match($status) {
+                                'RESOLVED' => '#0f5132',
+                                'ACKNOWLEDGED' => '#664d03',
+                                'INVESTIGATING' => '#084298',
+                                default => '#842029',
+                            };
+
+                            $statusBackground = match($status) {
+                                'RESOLVED' => '#d1e7dd',
+                                'ACKNOWLEDGED' => '#fff3cd',
+                                'INVESTIGATING' => '#cfe2ff',
+                                default => '#f8d7da',
+                            };
 
                             $slaColor = match($slaStatus) {
                                 'BREACHED' => '#842029',
@@ -594,7 +609,7 @@
 
 <style>
 @media(max-width:1100px){
-    div[style*="repeat(6,1fr)"]{
+    div[style*="repeat(7,1fr)"]{
         grid-template-columns:repeat(3,1fr)!important;
     }
 
@@ -604,7 +619,7 @@
 }
 
 @media(max-width:650px){
-    div[style*="repeat(6,1fr)"]{
+    div[style*="repeat(7,1fr)"]{
         grid-template-columns:1fr 1fr!important;
     }
 

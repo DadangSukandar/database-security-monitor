@@ -277,6 +277,7 @@ Route::get(
 
 Route::prefix('security-alerts')
     ->name('security-alerts.')
+    ->middleware('auth')
     ->group(function () {
 
         Route::get(
@@ -293,6 +294,26 @@ Route::prefix('security-alerts')
             '/{alert}/acknowledge',
             [SecurityAlertController::class, 'acknowledge']
         )->name('acknowledge');
+
+        Route::post(
+            '/{alert}/investigate',
+            [SecurityAlertController::class, 'investigate']
+        )->name('investigate');
+
+        Route::post(
+            '/{alert}/investigation-notes',
+            [SecurityAlertController::class, 'addInvestigationNote']
+        )->name('investigation-notes.store');
+
+        Route::post(
+            '/{alert}/assign',
+            [SecurityAlertController::class, 'assign']
+        )->name('assign');
+
+        Route::post(
+            '/{alert}/unassign',
+            [SecurityAlertController::class, 'unassign']
+        )->name('unassign');
 
         Route::post(
             '/{alert}/resolve',

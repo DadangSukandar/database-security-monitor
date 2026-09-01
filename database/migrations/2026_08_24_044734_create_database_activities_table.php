@@ -43,17 +43,17 @@ return new class extends Migration
 
             $table->index([
                 'database_connection_id',
-                'executed_at'
+                'executed_at',
             ]);
 
             $table->index([
                 'action',
-                'executed_at'
+                'executed_at',
             ]);
 
             $table->index([
                 'username',
-                'executed_at'
+                'executed_at',
             ]);
 
         });

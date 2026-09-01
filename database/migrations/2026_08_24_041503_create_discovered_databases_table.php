@@ -25,7 +25,7 @@ return new class extends Migration
 
             $table->unique([
                 'database_connection_id',
-                'name'
+                'name',
             ]);
         });
     }
