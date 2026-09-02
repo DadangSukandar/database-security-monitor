@@ -383,6 +383,11 @@ Route::prefix('security-incidents')
             [SecurityIncidentController::class, 'unassign']
         )->name('unassign');
 
+        Route::post(
+            '/{incident}/investigation-notes',
+            [SecurityIncidentController::class, 'addInvestigationNote']
+        )->name('investigation-notes.store');
+
     });
 
 Route::prefix('security-policies')

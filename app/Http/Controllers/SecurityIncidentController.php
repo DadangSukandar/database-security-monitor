@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SecurityIncident;
 use App\Services\SecurityIncidentAssignmentService;
+use App\Services\SecurityIncidentInvestigationService;
 use App\Services\SecurityIncidentLifecycleService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -252,6 +253,38 @@ class SecurityIncidentController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'incident' => 'Gagal unassign security incident: '.
+                    $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function addInvestigationNote(
+        Request $request,
+        SecurityIncident $incident,
+        SecurityIncidentInvestigationService $investigation
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'note' => [
+                'required',
+                'string',
+                'max:5000',
+            ],
+        ]);
+
+        try {
+            $investigation->addNote(
+                $incident,
+                $validated['note'],
+                $request->user()->id
+            );
+
+            return back()->with(
+                'success',
+                'Investigation note berhasil ditambahkan.'
+            );
+        } catch (Throwable $e) {
+            return back()->withErrors([
+                'incident' => 'Gagal menambahkan investigation note: '.
                     $e->getMessage(),
             ]);
         }

@@ -201,6 +201,79 @@
             </div>
         </div>
 
+    <div class="guard-card incident-investigation-card">
+        <div class="guard-card-header">
+            <div>
+                <div class="guard-card-eyebrow">
+                    Investigation
+                </div>
+
+                <h2 class="guard-card-title">
+                    Incident Investigation Notes
+                </h2>
+            </div>
+        </div>
+
+        <div class="guard-card-body">
+            <p class="incident-investigation-description">
+                Add an immutable analyst note to document
+                investigation findings, verification,
+                remediation activity, or post-incident review.
+            </p>
+
+            <form
+                method="POST"
+                action="{{ route(
+                    'security-incidents.investigation-notes.store',
+                    $incident
+                ) }}"
+                class="incident-investigation-form"
+            >
+                @csrf
+
+                <div class="incident-investigation-field">
+                    <label
+                        for="investigation_note"
+                        class="guard-label"
+                    >
+                        Investigation Note
+                    </label>
+
+                    <textarea
+                        id="investigation_note"
+                        name="note"
+                        rows="5"
+                        maxlength="5000"
+                        class="incident-investigation-textarea"
+                        placeholder="Document investigation findings, verification, remediation activity, or post-incident observations..."
+                        required
+                    >{{ old('note') }}</textarea>
+
+                    <div class="incident-investigation-meta">
+                        Maximum 5,000 characters.
+                        This note will be stored in the
+                        immutable incident history.
+                    </div>
+
+                    @error('note')
+                        <div class="incident-field-error">
+                            {{ $message }}
+                        </div>
+                    @enderror
+                </div>
+
+                <div class="incident-investigation-actions">
+                    <button
+                        type="submit"
+                        class="incident-action-button"
+                    >
+                        Add Investigation Note
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
         <div class="guard-card guard-section">
             <div class="guard-card-header">
                 <div>

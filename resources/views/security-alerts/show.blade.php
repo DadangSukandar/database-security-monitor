@@ -761,7 +761,20 @@
                             font-weight:700;
                         ">
                             Incident:
-                            {{ $alert->incident->incident_number }}
+                            <a
+                                href="{{ route(
+                                    'security-incidents.show',
+                                    $alert->incident
+                                ) }}"
+                                style="
+                                    color:inherit;
+                                    font-weight:800;
+                                    text-decoration:underline;
+                                    text-underline-offset:2px;
+                                "
+                            >
+                                {{ $alert->incident->incident_number }}
+                            </a>
                         </div>
 
                     @else

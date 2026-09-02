@@ -1251,5 +1251,72 @@
     }
 }
 
+.incident-investigation-description {
+    margin: 0 0 18px;
+    color: #a8a8a8;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.incident-investigation-form {
+    width: 100%;
+}
+
+.incident-investigation-field {
+    width: 100%;
+}
+
+.incident-investigation-textarea {
+    display: block;
+    width: 100%;
+    min-height: 130px;
+    margin-top: 8px;
+    padding: 12px 14px;
+    resize: vertical;
+    border: 1px solid #525252;
+    border-radius: 0;
+    background: #161616;
+    color: #f4f4f4;
+    font: inherit;
+    line-height: 1.5;
+}
+
+.incident-investigation-textarea::placeholder {
+    color: #6f6f6f;
+}
+
+.incident-investigation-textarea:focus {
+    outline: 2px solid #0f62fe;
+    outline-offset: -2px;
+    border-color: transparent;
+}
+
+.incident-investigation-meta {
+    margin-top: 7px;
+    color: #8d8d8d;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.incident-investigation-actions {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 14px;
+}
+
+.incident-field-error {
+    margin-top: 8px;
+    color: #ff8389;
+    font-size: 13px;
+}
+
+@media (max-width: 768px) {
+    .incident-investigation-actions,
+    .incident-investigation-actions
+        .incident-action-button {
+        width: 100%;
+    }
+}
+
 </style>
 @endonce

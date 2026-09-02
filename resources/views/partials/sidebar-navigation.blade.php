@@ -291,6 +291,12 @@
     <a href="{{ route('security-alerts.index') }}" class="nav-item {{ request()->routeIs('security-alerts.*') ? 'active' : '' }}">
         <span class="nav-icon">🚨</span><span>Security Alerts</span>
     </a>
+
+    <a href="{{ route('security-incidents.index') }}"
+    class="nav-item {{ request()->routeIs('security-incidents.*') ? 'active' : '' }}">
+        <span class="nav-icon">🚒</span><span>Security Incidents</span>
+    </a>
+
     <a href="{{ route('security-audit.index') }}" class="nav-item {{ request()->routeIs('security-audit.*') ? 'active' : '' }}">
         <span class="nav-icon">🛡️</span><span>Security Audit</span>
     </a>
