@@ -132,6 +132,65 @@ class SecurityIncidentController extends Controller
                 ->count(),
         ];
 
+        $acknowledgedIncidents = SecurityIncident::query()
+            ->whereNotNull('opened_at')
+            ->whereNotNull('acknowledged_at')
+            ->get();
+
+        $resolvedIncidents = SecurityIncident::query()
+            ->whereNotNull('opened_at')
+            ->whereNotNull('resolved_at')
+            ->get();
+
+        $acknowledgementDurations = $acknowledgedIncidents
+            ->map(
+                fn (SecurityIncident $incident): float => $incident->opened_at->diffInMinutes(
+                    $incident->acknowledged_at
+                )
+            );
+
+        $resolutionDurations = $resolvedIncidents
+            ->map(
+                fn (SecurityIncident $incident): float => $incident->opened_at->diffInMinutes(
+                    $incident->resolved_at
+                )
+            );
+
+        $acknowledgementSlaMet = $acknowledgedIncidents
+            ->filter(
+                fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'MET'
+            )
+            ->count();
+
+        $acknowledgementSlaBreached = $acknowledgedIncidents
+            ->filter(
+                fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'BREACHED'
+            )
+            ->count();
+
+        $acknowledgedCount = $acknowledgedIncidents->count();
+
+        $incidentResolutionMetrics = [
+            'average_acknowledgement_minutes' => $acknowledgementDurations->isNotEmpty()
+                    ? round($acknowledgementDurations->average(), 1)
+                    : null,
+
+            'average_resolution_minutes' => $resolutionDurations->isNotEmpty()
+                    ? round($resolutionDurations->average(), 1)
+                    : null,
+
+            'acknowledgement_sla_met' => $acknowledgementSlaMet,
+
+            'acknowledgement_sla_breached' => $acknowledgementSlaBreached,
+
+            'acknowledgement_sla_met_rate' => $acknowledgedCount > 0
+                    ? round(
+                        ($acknowledgementSlaMet / $acknowledgedCount) * 100,
+                        1
+                    )
+                    : null,
+        ];
+
         $incidents = SecurityIncident::query()
             ->with([
                 'securityAlert',
@@ -198,6 +257,7 @@ class SecurityIncidentController extends Controller
                 'incidentMetrics',
                 'incidentAgingMetrics',
                 'incidentSlaMetrics',
+                'incidentResolutionMetrics',
             )
         );
     }

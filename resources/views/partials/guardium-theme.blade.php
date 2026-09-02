@@ -1720,5 +1720,69 @@
             align-items: stretch;
         }
     }
+
+    .guard-incident-resolution-analytics {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+
+    .guard-incident-resolution-card {
+        min-width: 0;
+        padding: 14px 16px;
+        border: 1px solid var(--g-border);
+        border-radius: 4px;
+        background: var(--g-surface);
+    }
+
+    .guard-incident-resolution-label {
+        margin-bottom: 7px;
+        color: var(--g-muted);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+
+    .guard-incident-resolution-value {
+        color: var(--g-text);
+        font-size: 22px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .guard-incident-resolution-description {
+        margin-top: 9px;
+        color: var(--g-muted);
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    .guard-incident-resolution-success {
+        color: #42be65;
+    }
+
+    .guard-incident-resolution-danger {
+        color: #ff8389;
+    }
+
+    @media (max-width: 1100px) {
+        .guard-incident-resolution-analytics {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 720px) {
+        .guard-incident-resolution-analytics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 480px) {
+        .guard-incident-resolution-analytics {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 @endonce

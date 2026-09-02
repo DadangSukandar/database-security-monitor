@@ -135,6 +135,90 @@
         </div>
     </div>
 
+    <div class="guard-incident-resolution-analytics">
+        <div class="guard-incident-resolution-card">
+            <div class="guard-incident-resolution-label">
+                Avg Acknowledgement
+            </div>
+
+            <div class="guard-incident-resolution-value">
+                @if ($incidentResolutionMetrics['average_acknowledgement_minutes'] !== null)
+                    {{ number_format($incidentResolutionMetrics['average_acknowledgement_minutes'], 1) }} min
+                @else
+                    —
+                @endif
+            </div>
+
+            <div class="guard-incident-resolution-description">
+                Average time from opened to acknowledged
+            </div>
+        </div>
+
+        <div class="guard-incident-resolution-card">
+            <div class="guard-incident-resolution-label">
+                Avg Resolution
+            </div>
+
+            <div class="guard-incident-resolution-value">
+                @if ($incidentResolutionMetrics['average_resolution_minutes'] !== null)
+                    {{ number_format($incidentResolutionMetrics['average_resolution_minutes'], 1) }} min
+                @else
+                    —
+                @endif
+            </div>
+
+            <div class="guard-incident-resolution-description">
+                Average time from opened to resolved
+            </div>
+        </div>
+
+        <div class="guard-incident-resolution-card">
+            <div class="guard-incident-resolution-label">
+                Ack SLA Met
+            </div>
+
+            <div class="guard-incident-resolution-value guard-incident-resolution-success">
+                {{ number_format($incidentResolutionMetrics['acknowledgement_sla_met']) }}
+            </div>
+
+            <div class="guard-incident-resolution-description">
+                Historical acknowledged incidents meeting SLA
+            </div>
+        </div>
+
+        <div class="guard-incident-resolution-card">
+            <div class="guard-incident-resolution-label">
+                Ack SLA Breached
+            </div>
+
+            <div class="guard-incident-resolution-value guard-incident-resolution-danger">
+                {{ number_format($incidentResolutionMetrics['acknowledgement_sla_breached']) }}
+            </div>
+
+            <div class="guard-incident-resolution-description">
+                Historical acknowledged incidents missing SLA
+            </div>
+        </div>
+
+        <div class="guard-incident-resolution-card">
+            <div class="guard-incident-resolution-label">
+                Ack SLA Met Rate
+            </div>
+
+            <div class="guard-incident-resolution-value">
+                @if ($incidentResolutionMetrics['acknowledgement_sla_met_rate'] !== null)
+                    {{ number_format($incidentResolutionMetrics['acknowledgement_sla_met_rate'], 1) }}%
+                @else
+                    —
+                @endif
+            </div>
+
+            <div class="guard-incident-resolution-description">
+                SLA compliance among acknowledged incidents
+            </div>
+        </div>
+    </div>
+
     {{-- ============================================================
         INCIDENT FILTERS
     ============================================================ --}}
