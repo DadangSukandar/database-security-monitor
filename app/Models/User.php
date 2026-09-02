@@ -59,4 +59,28 @@ class User extends Authenticatable
             'assigned_to_user_id'
         );
     }
+
+    public function assignedSecurityIncidents(): HasMany
+    {
+        return $this->hasMany(
+            SecurityIncident::class,
+            'assigned_to_user_id'
+        );
+    }
+
+    public function createdSecurityIncidents(): HasMany
+    {
+        return $this->hasMany(
+            SecurityIncident::class,
+            'created_by_user_id'
+        );
+    }
+
+    public function securityIncidentHistories(): HasMany
+    {
+        return $this->hasMany(
+            SecurityIncidentHistory::class,
+            'user_id'
+        );
+    }
 }

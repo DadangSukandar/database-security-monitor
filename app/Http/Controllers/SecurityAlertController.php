@@ -6,6 +6,7 @@ use App\Models\SecurityAlert;
 use App\Services\SecurityAlertAssignmentService;
 use App\Services\SecurityAlertInvestigationService;
 use App\Services\SecurityAlertLifecycleService;
+use App\Services\SecurityIncidentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -285,6 +286,7 @@ class SecurityAlertController extends Controller
             'databaseActivity',
             'histories.user',
             'assignedTo',
+            'incident',
         ]);
 
         $teamMembers = collect();
@@ -396,6 +398,35 @@ class SecurityAlertController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'alert' => 'Gagal menambahkan catatan investigasi: '.
+                    $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * =========================================================
+     * ESCALATE TO INCIDENT
+     * =========================================================
+     */
+    public function escalateToIncident(
+        Request $request,
+        SecurityAlert $alert,
+        SecurityIncidentService $incidentService
+    ): RedirectResponse {
+        try {
+            $incident = $incidentService->createFromAlert(
+                $alert,
+                $request->user()->id
+            );
+
+            return back()->with(
+                'success',
+                'Security alert berhasil dieskalasi menjadi incident '.
+                    $incident->incident_number.'.'
+            );
+        } catch (Throwable $e) {
+            return back()->withErrors([
+                'alert' => 'Gagal mengeskalasi security alert: '.
                     $e->getMessage(),
             ]);
         }

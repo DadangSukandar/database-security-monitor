@@ -720,6 +720,118 @@
 
         @endif
 
+        {{-- INCIDENT ESCALATION --}}
+        @if($alert->canonical_alert_id === null)
+
+            <div style="
+                border-top:1px solid #dee2e6;
+                margin-top:25px;
+                padding-top:20px;
+            ">
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:flex-start;
+                    gap:20px;
+                    flex-wrap:wrap;
+                ">
+                    <div>
+                        <h2 style="font-size:17px;margin:0;">
+                            Incident Escalation
+                        </h2>
+
+                        <div style="
+                            color:#6c757d;
+                            font-size:12px;
+                            margin-top:4px;
+                        ">
+                            Eskalasi alert menjadi security incident untuk penanganan formal.
+                        </div>
+                    </div>
+
+                    @if($alert->incident)
+
+                        <div style="
+                            background:#d1e7dd;
+                            border:1px solid #badbcc;
+                            color:#0f5132;
+                            border-radius:7px;
+                            padding:10px 14px;
+                            font-size:12px;
+                            font-weight:700;
+                        ">
+                            Incident:
+                            {{ $alert->incident->incident_number }}
+                        </div>
+
+                    @else
+
+                        <form
+                            method="POST"
+                            action="{{ route(
+                                'security-alerts.escalate-to-incident',
+                                $alert
+                            ) }}"
+                            onsubmit="return confirm(
+                                'Eskalasi alert ini menjadi security incident?'
+                            );"
+                        >
+                            @csrf
+
+                            <button
+                                type="submit"
+                                style="
+                                    background:#dc3545;
+                                    color:white;
+                                    border:none;
+                                    border-radius:6px;
+                                    padding:9px 14px;
+                                    font-size:12px;
+                                    font-weight:700;
+                                    cursor:pointer;
+                                "
+                            >
+                                Escalate to Incident
+                            </button>
+                        </form>
+
+                    @endif
+                </div>
+
+                @if($alert->incident)
+                    <div style="
+                        margin-top:12px;
+                        background:#f8f9fa;
+                        border:1px solid #dee2e6;
+                        border-radius:7px;
+                        padding:12px 15px;
+                        font-size:12px;
+                    ">
+                        <div>
+                            <strong>Status:</strong>
+                            {{ $alert->incident->status }}
+                        </div>
+
+                        <div style="margin-top:5px;">
+                            <strong>Severity:</strong>
+                            {{ $alert->incident->severity }}
+                        </div>
+
+                        <div style="margin-top:5px;">
+                            <strong>Opened:</strong>
+                            {{ $alert->incident->opened_at?->format('d M Y H:i:s') ?? '-' }}
+                        </div>
+
+                        <div style="margin-top:5px;">
+                            <strong>PIC:</strong>
+                            {{ $alert->incident->assignedTo?->name ?? 'Unassigned' }}
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+        @endif
+
         {{-- ALERT HISTORY --}}
 
         <div style="border-top:1px solid #dee2e6;margin-top:25px;padding-top:20px;">

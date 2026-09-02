@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SecurityAlert extends Model
 {
@@ -313,6 +314,14 @@ class SecurityAlert extends Model
         return $this->belongsTo(
             User::class,
             'assigned_to_user_id'
+        );
+    }
+
+    public function incident(): HasOne
+    {
+        return $this->hasOne(
+            SecurityIncident::class,
+            'security_alert_id'
         );
     }
 }

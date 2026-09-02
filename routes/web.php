@@ -13,6 +13,7 @@ use App\Http\Controllers\SecurityAlertController;
 use App\Http\Controllers\SecurityAuditController;
 use App\Http\Controllers\SecurityDashboardController;
 use App\Http\Controllers\SecurityFindingController;
+use App\Http\Controllers\SecurityIncidentController;
 use App\Http\Controllers\SecurityPolicyController;
 use App\Http\Controllers\SecurityReportController;
 use App\Http\Controllers\SecurityRiskController;
@@ -324,6 +325,64 @@ Route::prefix('security-alerts')
             '/{alert}/reopen',
             [SecurityAlertController::class, 'reopen']
         )->name('reopen');
+
+        Route::post(
+            '/{alert}/escalate-to-incident',
+            [SecurityAlertController::class, 'escalateToIncident']
+        )->name('escalate-to-incident');
+
+    });
+
+Route::prefix('security-incidents')
+    ->name('security-incidents.')
+    ->middleware('auth')
+    ->group(function () {
+
+        Route::get(
+            '/',
+            [SecurityIncidentController::class, 'index']
+        )->name('index');
+
+        Route::get(
+            '/{incident}',
+            [SecurityIncidentController::class, 'show']
+        )->name('show');
+
+        Route::post(
+            '/{incident}/acknowledge',
+            [SecurityIncidentController::class, 'acknowledge']
+        )->name('acknowledge');
+
+        Route::post(
+            '/{incident}/investigate',
+            [SecurityIncidentController::class, 'investigate']
+        )->name('investigate');
+
+        Route::post(
+            '/{incident}/contain',
+            [SecurityIncidentController::class, 'contain']
+        )->name('contain');
+
+        Route::post(
+            '/{incident}/resolve',
+            [SecurityIncidentController::class, 'resolve']
+        )->name('resolve');
+
+        Route::post(
+            '/{incident}/close',
+            [SecurityIncidentController::class, 'close']
+        )->name('close');
+
+        Route::post(
+            '/{incident}/assign',
+            [SecurityIncidentController::class, 'assign']
+        )->name('assign');
+
+        Route::post(
+            '/{incident}/unassign',
+            [SecurityIncidentController::class, 'unassign']
+        )->name('unassign');
+
     });
 
 Route::prefix('security-policies')
