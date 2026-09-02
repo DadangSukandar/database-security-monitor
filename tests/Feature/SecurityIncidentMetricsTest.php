@@ -259,4 +259,40 @@ class SecurityIncidentMetricsTest extends TestCase
 
         $response->assertRedirect();
     }
+
+    public function test_oldest_active_metric_uses_longest_running_active_incident(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+
+        $now = now();
+
+        $this->createIncident([
+            'status' => 'OPEN',
+            'opened_at' => $now->copy()->subHours(2),
+        ]);
+
+        $this->createIncident([
+            'status' => 'INVESTIGATING',
+            'opened_at' => $now->copy()->subHours(6),
+        ]);
+
+        $this->createIncident([
+            'status' => 'CLOSED',
+            'opened_at' => $now->copy()->subDays(3),
+            'closed_at' => $now->copy()->subDays(2),
+        ]);
+
+        $response = $this->get(
+            route('security-incidents.index')
+        );
+
+        $response
+            ->assertOk()
+            ->assertViewHas(
+                'incidentAgingMetrics',
+                fn (array $metrics): bool => $metrics['oldest_active'] === '6h'
+            );
+    }
 }

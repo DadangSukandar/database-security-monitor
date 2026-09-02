@@ -83,6 +83,24 @@
             </div>
         </div>
 
+        <div class="guard-incident-metric">
+            <div class="guard-incident-metric-label">
+                Oldest Active
+            </div>
+
+            <div class="guard-incident-metric-value">
+                {{ $incidentAgingMetrics['oldest_active'] ?? '—' }}
+            </div>
+
+            <div class="guard-incident-metric-description">
+                @if ($incidentAgingMetrics['oldest_active'])
+                    Longest-running active incident
+                @else
+                    No active incidents
+                @endif
+            </div>
+        </div>
+
         <div class="guard-incident-metric guard-incident-metric-warning">
             <div class="guard-incident-metric-label">
                 Unassigned
@@ -327,6 +345,10 @@
                             Source Alert
                         </th>
 
+                         <th>
+                            Age
+                        </th>
+
                         <th>
                             Opened
                         </th>
@@ -453,6 +475,18 @@
 
                             </td>
 
+                            {{-- Age At --}}
+                            <td>
+                                <div class="guard-incident-age">
+                                    <strong>{{ $incident->ageLabel() }}</strong>
+
+                                    @if ($incident->status === 'CLOSED')
+                                        <span>Closed</span>
+                                    @else
+                                        <span>Active</span>
+                                    @endif
+                                </div>
+                            </td>
 
                             {{-- Opened At --}}
                             <td>

@@ -1467,7 +1467,7 @@
 
     .guard-incident-metrics {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 12px;
         margin-bottom: 18px;
     }
@@ -1550,6 +1550,30 @@
         .guard-incident-metrics {
             grid-template-columns: 1fr;
         }
+    }
+
+    .guard-incident-age {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 70px;
+    }
+
+    .guard-incident-age strong {
+        color: var(--g-text);
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .guard-incident-age span {
+        color: var(--g-muted);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .06em;
+        line-height: 1.2;
+        text-transform: uppercase;
     }
 </style>
 @endonce

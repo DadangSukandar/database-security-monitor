@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -38,6 +39,70 @@ class SecurityIncident extends Model
             'resolved_at' => 'datetime',
             'closed_at' => 'datetime',
         ];
+    }
+
+    public function ageEndedAt(
+        ?CarbonInterface $at = null
+    ): ?CarbonInterface {
+        if ($this->opened_at === null) {
+            return null;
+        }
+
+        if ($this->closed_at !== null) {
+            return $this->closed_at;
+        }
+
+        return $at ?? now();
+    }
+
+    public function ageMinutes(
+        ?CarbonInterface $at = null
+    ): ?int {
+        $endedAt = $this->ageEndedAt($at);
+
+        if (
+            $this->opened_at === null ||
+            $endedAt === null
+        ) {
+            return null;
+        }
+
+        return (int) floor(
+            $this->opened_at->diffInMinutes(
+                $endedAt
+            )
+        );
+    }
+
+    public function ageLabel(
+        ?CarbonInterface $at = null
+    ): string {
+        $minutes = $this->ageMinutes($at);
+
+        if ($minutes === null) {
+            return 'Unknown';
+        }
+
+        if ($minutes < 60) {
+            return $minutes.'m';
+        }
+
+        $hours = intdiv($minutes, 60);
+
+        if ($hours < 24) {
+            $remainingMinutes = $minutes % 60;
+
+            return $remainingMinutes > 0
+                ? $hours.'h '.$remainingMinutes.'m'
+                : $hours.'h';
+        }
+
+        $days = intdiv($hours, 24);
+        $remainingHours = $hours % 24;
+
+        return $remainingHours > 0
+            ? $days.'d '.$remainingHours.'h'
+            : $days.'d';
     }
 
     public function securityAlert(): BelongsTo

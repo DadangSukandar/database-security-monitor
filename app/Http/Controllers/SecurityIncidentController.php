@@ -104,6 +104,16 @@ class SecurityIncidentController extends Controller
                 ->count(),
         ];
 
+        $oldestActiveIncident = SecurityIncident::query()
+            ->where('status', '!=', 'CLOSED')
+            ->whereNotNull('opened_at')
+            ->oldest('opened_at')
+            ->first();
+
+        $incidentAgingMetrics = [
+            'oldest_active' => $oldestActiveIncident?->ageLabel(),
+        ];
+
         $incidents = SecurityIncident::query()
             ->with([
                 'securityAlert',
@@ -167,7 +177,8 @@ class SecurityIncidentController extends Controller
             compact(
                 'incidents',
                 'teamMembers',
-                'incidentMetrics'
+                'incidentMetrics',
+                'incidentAgingMetrics',
             )
         );
     }
