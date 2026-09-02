@@ -1784,5 +1784,53 @@
             grid-template-columns: 1fr;
         }
     }
+
+    .incident-activity-heading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .incident-activity-heading strong {
+        min-width: 0;
+    }
+
+    .incident-activity-category {
+        display: inline-flex;
+        align-items: center;
+        min-height: 20px;
+        padding: 3px 7px;
+        border: 1px solid var(--g-border);
+        border-radius: 999px;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        line-height: 1;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .incident-activity-category-lifecycle {
+        color: #78a9ff;
+        border-color: rgba(120, 169, 255, .4);
+        background: rgba(120, 169, 255, .08);
+    }
+
+    .incident-activity-category-ownership {
+        color: #f1c21b;
+        border-color: rgba(241, 194, 27, .4);
+        background: rgba(241, 194, 27, .08);
+    }
+
+    .incident-activity-category-investigation {
+        color: #42be65;
+        border-color: rgba(66, 190, 101, .4);
+        background: rgba(66, 190, 101, .08);
+    }
+
+    .incident-activity-category-activity {
+        color: var(--g-muted);
+    }
 </style>
 @endonce

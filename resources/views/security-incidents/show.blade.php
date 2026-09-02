@@ -609,10 +609,9 @@
         <div class="guard-card guard-section">
             <div class="guard-card-header">
                 <div>
-                    <h2>Incident History</h2>
+                    <h2>Case Activity Timeline</h2>
                     <p>
-                        Immutable audit trail for incident
-                        lifecycle activity.
+                        Immutable timeline of lifecycle, ownership, and investigation activity.
                     </p>
                 </div>
 
@@ -638,25 +637,20 @@
 
                         <div class="incident-history-content">
 
-                            <div class="incident-history-header">
+                           <div class="incident-activity-heading">
                                 <strong>
-                                    {{ str_replace(
-                                        '_',
-                                        ' ',
-                                        $history->action
-                                    ) }}
+                                    {{ $history->activityLabel() }}
                                 </strong>
 
-                                <span>
-                                    {{ $history->created_at
-                                        ?->format('d M Y H:i:s') }}
+                                <span class="incident-activity-category incident-activity-category-{{
+                                    strtolower($history->activityCategory())
+                                }}">
+                                    {{ $history->activityCategory() }}
                                 </span>
                             </div>
 
-                            @if(
-                                $history->old_status ||
-                                $history->new_status
-                            )
+                            @if($history->isStatusTransition())
+
                                 <div class="incident-history-transition">
 
                                     <span class="guard-badge status-{{
@@ -676,7 +670,7 @@
                                     </span>
 
                                     <span class="incident-history-arrow">
-                                        →
+                                        &rarr;
                                     </span>
 
                                     <span class="guard-badge status-{{
