@@ -174,6 +174,52 @@ class SecurityIncident extends Model
         return $this->responseSlaStatus($at) === 'BREACHED';
     }
 
+    public function triagePriority(
+        ?CarbonInterface $at = null
+    ): string {
+        if (strtoupper((string) $this->status) === 'CLOSED') {
+            return 'NONE';
+        }
+
+        $severity = strtoupper(
+            (string) $this->severity
+        );
+
+        $slaStatus = $this->responseSlaStatus($at);
+
+        if (
+            $slaStatus === 'BREACHED' ||
+            $severity === 'CRITICAL'
+        ) {
+            return 'P1';
+        }
+
+        if (
+            $slaStatus === 'DUE_SOON' ||
+            $severity === 'HIGH'
+        ) {
+            return 'P2';
+        }
+
+        if ($severity === 'MEDIUM') {
+            return 'P3';
+        }
+
+        return 'P4';
+    }
+
+    public function triagePriorityLabel(
+        ?CarbonInterface $at = null
+    ): string {
+        return match ($this->triagePriority($at)) {
+            'P1' => 'Immediate',
+            'P2' => 'High',
+            'P3' => 'Normal',
+            'P4' => 'Low',
+            default => 'Closed',
+        };
+    }
+
     public function securityAlert(): BelongsTo
     {
         return $this->belongsTo(

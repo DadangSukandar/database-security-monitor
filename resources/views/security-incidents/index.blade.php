@@ -436,6 +436,10 @@
                         </th>
 
                         <th>
+                            Priority
+                        </th>
+
+                        <th>
                             Status
                         </th>
 
@@ -518,6 +522,18 @@
                                 </span>
                             </td>
 
+                            {{-- Priority --}}
+                            <td>
+                                @php
+                                    $priority = $incident->triagePriority();
+                                    $priorityLabel = $incident->triagePriorityLabel();
+                                @endphp
+
+                                <span class="incident-priority incident-priority-{{ strtolower($priority) }}">
+                                    <strong>{{ $priority }}</strong>
+                                    <span>{{ $priorityLabel }}</span>
+                                </span>
+                            </td>
 
                             {{-- Status --}}
                             <td>
@@ -619,7 +635,7 @@
 
                         <tr>
                             <td
-                                colspan="7"
+                                colspan="10"
                                 class="guard-empty"
                             >
 

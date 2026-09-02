@@ -1832,5 +1832,63 @@
     .incident-activity-category-activity {
         color: var(--g-muted);
     }
+
+    .incident-priority {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .incident-priority strong {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        min-height: 22px;
+        padding: 3px 6px;
+        border: 1px solid var(--g-border);
+        border-radius: 3px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .04em;
+        line-height: 1;
+    }
+
+    .incident-priority > span {
+        color: var(--g-muted);
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .incident-priority-p1 strong {
+        color: #ff8389;
+        border-color: rgba(250, 77, 86, .55);
+        background: rgba(250, 77, 86, .12);
+    }
+
+    .incident-priority-p2 strong {
+        color: #f1c21b;
+        border-color: rgba(241, 194, 27, .5);
+        background: rgba(241, 194, 27, .10);
+    }
+
+    .incident-priority-p3 strong {
+        color: #78a9ff;
+        border-color: rgba(120, 169, 255, .45);
+        background: rgba(120, 169, 255, .10);
+    }
+
+    .incident-priority-p4 strong {
+        color: #42be65;
+        border-color: rgba(66, 190, 101, .4);
+        background: rgba(66, 190, 101, .08);
+    }
+
+    .incident-priority-none strong {
+        color: var(--g-muted);
+        border-color: var(--g-border);
+        background: var(--g-surface-soft);
+    }
 </style>
 @endonce
