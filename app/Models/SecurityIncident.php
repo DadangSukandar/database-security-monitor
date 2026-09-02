@@ -105,6 +105,75 @@ class SecurityIncident extends Model
             : $days.'d';
     }
 
+    public function responseSlaMinutes(): int
+    {
+        $severity = strtoupper(
+            (string) $this->severity
+        );
+
+        return (int) config(
+            "security.incident_response_sla_minutes.{$severity}",
+            config('security.incident_response_sla_minutes.LOW', 1440)
+        );
+    }
+
+    public function responseSlaDeadline(): ?CarbonInterface
+    {
+        if ($this->opened_at === null) {
+            return null;
+        }
+
+        return $this->opened_at
+            ->copy()
+            ->addMinutes(
+                $this->responseSlaMinutes()
+            );
+    }
+
+    public function responseSlaStatus(
+        ?CarbonInterface $at = null
+    ): string {
+        $deadline = $this->responseSlaDeadline();
+
+        if ($deadline === null) {
+            return 'UNKNOWN';
+        }
+
+        if ($this->acknowledged_at !== null) {
+            return $this->acknowledged_at->lte($deadline)
+                ? 'MET'
+                : 'BREACHED';
+        }
+
+        if ($this->status === 'CLOSED') {
+            return 'BREACHED';
+        }
+
+        $at ??= now();
+
+        if ($at->gt($deadline)) {
+            return 'BREACHED';
+        }
+
+        $warningThreshold = $deadline
+            ->copy()
+            ->subMinutes(
+                (int) ceil(
+                    $this->responseSlaMinutes() * 0.25
+                )
+            );
+
+        return $at->gte($warningThreshold)
+            ? 'DUE_SOON'
+            : 'ON_TRACK';
+    }
+
+    public function hasBreachedResponseSla(
+        ?CarbonInterface $at = null
+    ): bool {
+        return $this->responseSlaStatus($at) === 'BREACHED';
+    }
+
     public function securityAlert(): BelongsTo
     {
         return $this->belongsTo(

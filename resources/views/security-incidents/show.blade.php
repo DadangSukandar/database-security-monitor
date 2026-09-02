@@ -190,6 +190,54 @@
         </div>
     </div>
 
+    @php
+        $responseSlaStatus = $incident->responseSlaStatus();
+        $responseSlaDeadline = $incident->responseSlaDeadline();
+    @endphp
+
+    <div class="guard-card guard-incident-sla-card">
+        <div class="guard-card-header">
+            <div>
+                <div class="guard-eyebrow">Response SLA</div>
+                <h2>Incident Response SLA</h2>
+            </div>
+
+            <div class="guard-incident-sla guard-incident-sla-{{ strtolower($responseSlaStatus) }}">
+                {{ str_replace('_', ' ', $responseSlaStatus) }}
+            </div>
+        </div>
+
+        <div class="guard-incident-sla-detail-grid">
+            <div class="guard-incident-sla-detail">
+                <span>Target</span>
+                <strong>
+                    {{ number_format($incident->responseSlaMinutes()) }} minutes
+                </strong>
+            </div>
+
+            <div class="guard-incident-sla-detail">
+                <span>Opened</span>
+                <strong>
+                    {{ $incident->opened_at?->format('d M Y H:i:s') ?? '—' }}
+                </strong>
+            </div>
+
+            <div class="guard-incident-sla-detail">
+                <span>Deadline</span>
+                <strong>
+                    {{ $responseSlaDeadline?->format('d M Y H:i:s') ?? '—' }}
+                </strong>
+            </div>
+
+            <div class="guard-incident-sla-detail">
+                <span>Acknowledged</span>
+                <strong>
+                    {{ $incident->acknowledged_at?->format('d M Y H:i:s') ?? 'Not acknowledged' }}
+                </strong>
+            </div>
+        </div>
+    </div>
+
     {{-- OWNERSHIP --}}
     <div class="guard-card guard-section">
         <div class="guard-card-header">

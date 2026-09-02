@@ -295,4 +295,51 @@ class SecurityIncidentMetricsTest extends TestCase
                 fn (array $metrics): bool => $metrics['oldest_active'] === '6h'
             );
     }
+
+    public function test_incident_index_exposes_active_sla_metrics(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+
+        $now = now();
+
+        $this->createIncident([
+            'severity' => 'HIGH',
+            'status' => 'OPEN',
+            'opened_at' => $now->copy()->subMinutes(90),
+        ]);
+
+        $this->createIncident([
+            'severity' => 'HIGH',
+            'status' => 'OPEN',
+            'opened_at' => $now->copy()->subMinutes(50),
+        ]);
+
+        $this->createIncident([
+            'severity' => 'HIGH',
+            'status' => 'OPEN',
+            'opened_at' => $now->copy()->subMinutes(20),
+        ]);
+
+        $this->createIncident([
+            'severity' => 'HIGH',
+            'status' => 'CLOSED',
+            'opened_at' => $now->copy()->subHours(5),
+            'closed_at' => $now->copy()->subHours(2),
+            'acknowledged_at' => null,
+        ]);
+
+        $response = $this->get(
+            route('security-incidents.index')
+        );
+
+        $response
+            ->assertOk()
+            ->assertViewHas(
+                'incidentSlaMetrics',
+                fn (array $metrics): bool => $metrics['breached'] === 1
+                    && $metrics['due_soon'] === 1
+            );
+    }
 }

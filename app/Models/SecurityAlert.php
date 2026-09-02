@@ -251,12 +251,14 @@ class SecurityAlert extends Model
 
     public function responseSlaMinutes(): int
     {
-        return match (strtoupper((string) $this->severity)) {
-            'CRITICAL' => 15,
-            'HIGH' => 60,
-            'MEDIUM' => 240,
-            default => 1440,
-        };
+        $severity = strtoupper(
+            (string) $this->severity
+        );
+
+        return (int) config(
+            "security.alert_response_sla_minutes.{$severity}",
+            config('security.alert_response_sla_minutes.LOW', 1440)
+        );
     }
 
     public function responseSlaDeadline(): ?CarbonInterface

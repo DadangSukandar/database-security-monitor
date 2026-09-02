@@ -117,6 +117,24 @@
 
     </div>
 
+    <div class="guard-incident-sla-summary">
+        <div class="guard-incident-sla-summary-item">
+            <span>Response SLA Breached</span>
+
+            <strong class="guard-incident-sla-summary-breached">
+                {{ number_format($incidentSlaMetrics['breached']) }}
+            </strong>
+        </div>
+
+        <div class="guard-incident-sla-summary-item">
+            <span>Response SLA Due Soon</span>
+
+            <strong class="guard-incident-sla-summary-due">
+                {{ number_format($incidentSlaMetrics['due_soon']) }}
+            </strong>
+        </div>
+    </div>
+
     {{-- ============================================================
         INCIDENT FILTERS
     ============================================================ --}}
@@ -350,6 +368,10 @@
                         </th>
 
                         <th>
+                            SLA
+                        </th>
+
+                        <th>
                             Opened
                         </th>
                     </tr>
@@ -485,6 +507,17 @@
                                     @else
                                         <span>Active</span>
                                     @endif
+                                </div>
+                            </td>
+
+                            @php
+                                $slaStatus = $incident->responseSlaStatus();
+                            @endphp
+
+                            {{-- Sla --}}
+                            <td>
+                                <div class="guard-incident-sla guard-incident-sla-{{ strtolower($slaStatus) }}">
+                                    {{ str_replace('_', ' ', $slaStatus) }}
                                 </div>
                             </td>
 

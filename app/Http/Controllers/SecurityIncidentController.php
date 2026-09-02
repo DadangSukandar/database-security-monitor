@@ -114,6 +114,24 @@ class SecurityIncidentController extends Controller
             'oldest_active' => $oldestActiveIncident?->ageLabel(),
         ];
 
+        $activeIncidentsForSla = SecurityIncident::query()
+            ->where('status', '!=', 'CLOSED')
+            ->get();
+
+        $incidentSlaMetrics = [
+            'breached' => $activeIncidentsForSla
+                ->filter(
+                    fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'BREACHED'
+                )
+                ->count(),
+
+            'due_soon' => $activeIncidentsForSla
+                ->filter(
+                    fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'DUE_SOON'
+                )
+                ->count(),
+        ];
+
         $incidents = SecurityIncident::query()
             ->with([
                 'securityAlert',
@@ -179,6 +197,7 @@ class SecurityIncidentController extends Controller
                 'teamMembers',
                 'incidentMetrics',
                 'incidentAgingMetrics',
+                'incidentSlaMetrics',
             )
         );
     }

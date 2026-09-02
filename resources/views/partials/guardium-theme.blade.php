@@ -1575,5 +1575,150 @@
         line-height: 1.2;
         text-transform: uppercase;
     }
+
+    .guard-incident-sla {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 4px 8px;
+        border: 1px solid var(--g-border);
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .05em;
+        line-height: 1;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .guard-incident-sla-on_track {
+        color: #42be65;
+        border-color: rgba(66, 190, 101, .45);
+        background: rgba(66, 190, 101, .08);
+    }
+
+    .guard-incident-sla-due_soon {
+        color: #f1c21b;
+        border-color: rgba(241, 194, 27, .45);
+        background: rgba(241, 194, 27, .08);
+    }
+
+    .guard-incident-sla-breached {
+        color: #ff8389;
+        border-color: rgba(250, 77, 86, .5);
+        background: rgba(250, 77, 86, .1);
+    }
+
+    .guard-incident-sla-met {
+        color: #78a9ff;
+        border-color: rgba(120, 169, 255, .45);
+        background: rgba(120, 169, 255, .08);
+    }
+
+    .guard-incident-sla-unknown {
+        color: var(--g-muted);
+    }
+
+    .guard-incident-sla-card {
+    margin-bottom: 18px;
+    }
+
+    .guard-incident-sla-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1px;
+        overflow: hidden;
+        border: 1px solid var(--g-border-soft);
+        border-radius: 4px;
+        background: var(--g-border-soft);
+    }
+
+    .guard-incident-sla-detail {
+        min-width: 0;
+        padding: 14px 16px;
+        background: var(--g-surface);
+    }
+
+    .guard-incident-sla-detail span {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--g-muted);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+
+    .guard-incident-sla-detail strong {
+        display: block;
+        overflow: hidden;
+        color: var(--g-text);
+        font-size: 13px;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+        .guard-incident-sla-detail-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 520px) {
+        .guard-incident-sla-detail-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .guard-incident-sla-summary {
+        display: flex;
+        align-items: center;
+        gap: 1px;
+        margin-top: -6px;
+        margin-bottom: 18px;
+        overflow: hidden;
+        border: 1px solid var(--g-border);
+        border-radius: 4px;
+        background: var(--g-border);
+    }
+
+    .guard-incident-sla-summary-item {
+        display: flex;
+        flex: 1;
+        align-items: center;
+        justify-content: space-between;
+        min-width: 0;
+        padding: 11px 14px;
+        background: var(--g-surface);
+    }
+
+    .guard-incident-sla-summary-item span {
+        color: var(--g-muted);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .guard-incident-sla-summary-item strong {
+        font-size: 18px;
+        font-weight: 800;
+    }
+
+    .guard-incident-sla-summary-breached {
+        color: #ff8389;
+    }
+
+    .guard-incident-sla-summary-due {
+        color: #f1c21b;
+    }
+
+    @media (max-width: 620px) {
+        .guard-incident-sla-summary {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
 </style>
 @endonce
