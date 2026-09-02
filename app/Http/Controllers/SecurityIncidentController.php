@@ -14,14 +14,149 @@ use Throwable;
 
 class SecurityIncidentController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $filters = $request->validate([
+            'search' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'status' => [
+                'nullable',
+                'string',
+                'in:OPEN,ACKNOWLEDGED,INVESTIGATING,CONTAINED,RESOLVED,CLOSED',
+            ],
+            'severity' => [
+                'nullable',
+                'string',
+                'in:CRITICAL,HIGH,MEDIUM,LOW',
+            ],
+            'pic' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
+        ]);
+
+        $search = trim($filters['search'] ?? '');
+        $status = $filters['status'] ?? null;
+        $severity = $filters['severity'] ?? null;
+        $pic = $filters['pic'] ?? null;
+
+        $currentTeam = $request->user()->currentTeam;
+
+        $teamMembers = $currentTeam
+            ? $currentTeam
+                ->members()
+                ->orderBy('name')
+                ->get()
+            : collect();
+
+        if (
+            $pic !== null &&
+            $pic !== '' &&
+            $pic !== 'unassigned'
+        ) {
+            if (! ctype_digit($pic)) {
+                throw ValidationException::withMessages([
+                    'pic' => 'PIC filter tidak valid.',
+                ]);
+            }
+
+            $picUserId = (int) $pic;
+
+            $isCurrentTeamMember = $teamMembers->contains(
+                fn ($member) => (int) $member->id === $picUserId
+            );
+
+            if (! $isCurrentTeamMember) {
+                throw ValidationException::withMessages([
+                    'pic' => 'PIC harus merupakan anggota current team.',
+                ]);
+            }
+        }
+
+        $incidentMetrics = [
+            'active' => SecurityIncident::query()
+                ->where('status', '!=', 'CLOSED')
+                ->count(),
+
+            'open' => SecurityIncident::query()
+                ->where('status', 'OPEN')
+                ->count(),
+
+            'investigating' => SecurityIncident::query()
+                ->where('status', 'INVESTIGATING')
+                ->count(),
+
+            'critical_high' => SecurityIncident::query()
+                ->where('status', '!=', 'CLOSED')
+                ->whereIn('severity', [
+                    'CRITICAL',
+                    'HIGH',
+                ])
+                ->count(),
+
+            'unassigned' => SecurityIncident::query()
+                ->where('status', '!=', 'CLOSED')
+                ->whereNull('assigned_to_user_id')
+                ->count(),
+        ];
+
         $incidents = SecurityIncident::query()
             ->with([
                 'securityAlert',
                 'assignedTo',
                 'createdBy',
             ])
+            ->when(
+                $search !== '',
+                function ($query) use ($search) {
+                    $query->where(function ($query) use ($search) {
+                        $query
+                            ->where(
+                                'incident_number',
+                                'like',
+                                '%'.$search.'%'
+                            )
+                            ->orWhere(
+                                'title',
+                                'like',
+                                '%'.$search.'%'
+                            );
+                    });
+                }
+            )
+            ->when(
+                $status !== null,
+                fn ($query) => $query->where(
+                    'status',
+                    $status
+                )
+            )
+            ->when(
+                $severity !== null,
+                fn ($query) => $query->where(
+                    'severity',
+                    $severity
+                )
+            )
+            ->when(
+                $pic === 'unassigned',
+                fn ($query) => $query->whereNull(
+                    'assigned_to_user_id'
+                )
+            )
+            ->when(
+                $pic !== null
+                    && $pic !== ''
+                    && $pic !== 'unassigned',
+                fn ($query) => $query->where(
+                    'assigned_to_user_id',
+                    (int) $pic
+                )
+            )
             ->latest('opened_at')
             ->latest('id')
             ->paginate(20)
@@ -29,7 +164,11 @@ class SecurityIncidentController extends Controller
 
         return view(
             'security-incidents.index',
-            compact('incidents')
+            compact(
+                'incidents',
+                'teamMembers',
+                'incidentMetrics'
+            )
         );
     }
 
