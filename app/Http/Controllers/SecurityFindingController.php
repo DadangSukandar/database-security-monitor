@@ -3,10 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\SecurityFinding;
-use App\Models\SecurityFindingHistory;
+use App\Services\SecurityFindingLifecycleService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Throwable;
 
@@ -19,6 +18,13 @@ class SecurityFindingController extends Controller
      */
     public function index(Request $request): View
     {
+        $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'severity' => ['nullable', 'string', 'in:CRITICAL,HIGH,MEDIUM,LOW'],
+            'status' => ['nullable', 'string', 'in:OPEN,RESOLVED,IGNORED'],
+            'database' => ['nullable', 'string', 'max:255'],
+            'category' => ['nullable', 'string', 'max:255'],
+        ]);
         /*
          * =====================================================
          * BASE QUERY
@@ -430,230 +436,55 @@ class SecurityFindingController extends Controller
      * =========================================================
      */
     public function resolve(
-        SecurityFinding $finding
+        SecurityFinding $finding,
+        SecurityFindingLifecycleService $lifecycle,
     ): RedirectResponse {
-
         try {
-
-            DB::transaction(function () use (
-                $finding
-            ) {
-
-                /*
-                 * Simpan status lama.
-                 */
-
-                $oldStatus =
-                    strtoupper(
-                        (string) $finding->status
-                    );
-
-                /*
-                 * Jika sudah RESOLVED,
-                 * tidak perlu membuat history baru.
-                 */
-
-                if (
-                    $oldStatus === 'RESOLVED'
-                ) {
-
-                    return;
-                }
-
-                /*
-                 * Update finding.
-                 */
-
-                $finding->update([
-                    'status' => 'RESOLVED',
-                ]);
-
-                /*
-                 * Simpan history.
-                 */
-
-                SecurityFindingHistory::create([
-
-                    'security_finding_id' => $finding->id,
-
-                    'action' => 'RESOLVE',
-
-                    'old_status' => $oldStatus,
-
-                    'new_status' => 'RESOLVED',
-
-                    'notes' => 'Security finding ditandai sebagai resolved.',
-
-                    'user_id' => auth()->id(),
-                ]);
-            });
+            $lifecycle->resolve($finding, (int) auth()->id());
 
             return back()->with(
                 'success',
                 'Security finding berhasil ditandai sebagai resolved.'
             );
-
-        } catch (Throwable $e) {
-
+        } catch (Throwable $exception) {
             return back()->withErrors([
-                'finding' => 'Gagal resolve finding: '.
-                    $e->getMessage(),
+                'finding' => 'Gagal resolve finding: '.$this->safeExceptionDetail($exception),
             ]);
         }
     }
 
-    /**
-     * =========================================================
-     * IGNORE
-     * =========================================================
-     */
     public function ignore(
-        SecurityFinding $finding
+        SecurityFinding $finding,
+        SecurityFindingLifecycleService $lifecycle,
     ): RedirectResponse {
-
         try {
-
-            DB::transaction(function () use (
-                $finding
-            ) {
-
-                /*
-                 * Status lama.
-                 */
-
-                $oldStatus =
-                    strtoupper(
-                        (string) $finding->status
-                    );
-
-                /*
-                 * Jika sudah IGNORED,
-                 * tidak perlu history duplikat.
-                 */
-
-                if (
-                    $oldStatus === 'IGNORED'
-                ) {
-
-                    return;
-                }
-
-                /*
-                 * Update status.
-                 */
-
-                $finding->update([
-                    'status' => 'IGNORED',
-                ]);
-
-                /*
-                 * Simpan history.
-                 */
-
-                SecurityFindingHistory::create([
-
-                    'security_finding_id' => $finding->id,
-
-                    'action' => 'IGNORE',
-
-                    'old_status' => $oldStatus,
-
-                    'new_status' => 'IGNORED',
-
-                    'notes' => 'Security finding diabaikan.',
-
-                    'user_id' => auth()->id(),
-                ]);
-            });
+            $lifecycle->ignore($finding, (int) auth()->id());
 
             return back()->with(
                 'success',
                 'Security finding berhasil diabaikan.'
             );
-
-        } catch (Throwable $e) {
-
+        } catch (Throwable $exception) {
             return back()->withErrors([
-                'finding' => 'Gagal ignore finding: '.
-                    $e->getMessage(),
+                'finding' => 'Gagal ignore finding: '.$this->safeExceptionDetail($exception),
             ]);
         }
     }
 
-    /**
-     * =========================================================
-     * REOPEN
-     * =========================================================
-     */
     public function reopen(
-        SecurityFinding $finding
+        SecurityFinding $finding,
+        SecurityFindingLifecycleService $lifecycle,
     ): RedirectResponse {
-
         try {
-
-            DB::transaction(function () use (
-                $finding
-            ) {
-
-                /*
-                 * Status lama.
-                 */
-
-                $oldStatus =
-                    strtoupper(
-                        (string) $finding->status
-                    );
-
-                /*
-                 * Jika sudah OPEN,
-                 * tidak perlu membuat history baru.
-                 */
-
-                if (
-                    $oldStatus === 'OPEN'
-                ) {
-
-                    return;
-                }
-
-                /*
-                 * Update status.
-                 */
-
-                $finding->update([
-                    'status' => 'OPEN',
-                ]);
-
-                /*
-                 * Simpan history.
-                 */
-
-                SecurityFindingHistory::create([
-
-                    'security_finding_id' => $finding->id,
-
-                    'action' => 'REOPEN',
-
-                    'old_status' => $oldStatus,
-
-                    'new_status' => 'OPEN',
-
-                    'notes' => 'Security finding dibuka kembali.',
-
-                    'user_id' => auth()->id(),
-                ]);
-            });
+            $lifecycle->reopen($finding, (int) auth()->id());
 
             return back()->with(
                 'success',
                 'Security finding berhasil dibuka kembali.'
             );
-
-        } catch (Throwable $e) {
-
+        } catch (Throwable $exception) {
             return back()->withErrors([
-                'finding' => 'Gagal reopen finding: '.
-                    $e->getMessage(),
+                'finding' => 'Gagal reopen finding: '.$this->safeExceptionDetail($exception),
             ]);
         }
     }

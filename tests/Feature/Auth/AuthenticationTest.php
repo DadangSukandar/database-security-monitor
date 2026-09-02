@@ -48,7 +48,7 @@ test('users can authenticate using the login screen', function () {
     $user->refresh();
 
     $response->assertRedirect(
-        "/{$user->currentTeam->slug}/dashboard"
+        route('dashboard')
     );
 });
 

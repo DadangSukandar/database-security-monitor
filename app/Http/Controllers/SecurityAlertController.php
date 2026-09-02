@@ -320,7 +320,7 @@ class SecurityAlertController extends Controller
         try {
             $lifecycle->acknowledge($alert, auth()->id());
         } catch (Throwable $exception) {
-            return back()->withErrors(['alert' => $exception->getMessage()]);
+            return back()->withErrors(['alert' => $this->safeExceptionDetail($exception)]);
         }
 
         return back()->with(
@@ -361,7 +361,7 @@ class SecurityAlertController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'alert' => 'Gagal memulai investigasi: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -398,7 +398,7 @@ class SecurityAlertController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'alert' => 'Gagal menambahkan catatan investigasi: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -427,7 +427,7 @@ class SecurityAlertController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'alert' => 'Gagal mengeskalasi security alert: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -487,7 +487,7 @@ class SecurityAlertController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'alert' => 'Gagal assign security alert: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -515,7 +515,7 @@ class SecurityAlertController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'alert' => 'Gagal unassign security alert: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -555,7 +555,7 @@ class SecurityAlertController extends Controller
 
             return back()->withErrors([
                 'alert' => 'Gagal resolve alert: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -582,7 +582,7 @@ class SecurityAlertController extends Controller
 
             return back()->withErrors([
                 'alert' => 'Gagal reopen alert: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }

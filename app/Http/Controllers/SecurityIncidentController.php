@@ -32,6 +32,11 @@ class SecurityIncidentController extends Controller
                 'string',
                 'in:CRITICAL,HIGH,MEDIUM,LOW',
             ],
+            'priority' => [
+                'nullable',
+                'string',
+                'in:P1,P2,P3,P4,NONE',
+            ],
             'pic' => [
                 'nullable',
                 'string',
@@ -42,6 +47,7 @@ class SecurityIncidentController extends Controller
         $search = trim($filters['search'] ?? '');
         $status = $filters['status'] ?? null;
         $severity = $filters['severity'] ?? null;
+        $priority = $filters['priority'] ?? null;
         $pic = $filters['pic'] ?? null;
 
         $currentTeam = $request->user()->currentTeam;
@@ -108,7 +114,7 @@ class SecurityIncidentController extends Controller
             ->where('status', '!=', 'CLOSED')
             ->whereNotNull('opened_at')
             ->oldest('opened_at')
-            ->first();
+            ->first(['id', 'opened_at', 'closed_at']);
 
         $incidentAgingMetrics = [
             'oldest_active' => $oldestActiveIncident?->ageLabel(),
@@ -116,7 +122,13 @@ class SecurityIncidentController extends Controller
 
         $activeIncidentsForSla = SecurityIncident::query()
             ->where('status', '!=', 'CLOSED')
-            ->get();
+            ->get([
+                'id',
+                'severity',
+                'status',
+                'opened_at',
+                'acknowledged_at',
+            ]);
 
         $incidentSlaMetrics = [
             'breached' => $activeIncidentsForSla
@@ -135,12 +147,22 @@ class SecurityIncidentController extends Controller
         $acknowledgedIncidents = SecurityIncident::query()
             ->whereNotNull('opened_at')
             ->whereNotNull('acknowledged_at')
-            ->get();
+            ->get([
+                'id',
+                'severity',
+                'status',
+                'opened_at',
+                'acknowledged_at',
+            ]);
 
         $resolvedIncidents = SecurityIncident::query()
             ->whereNotNull('opened_at')
             ->whereNotNull('resolved_at')
-            ->get();
+            ->get([
+                'id',
+                'opened_at',
+                'resolved_at',
+            ]);
 
         $acknowledgementDurations = $acknowledgedIncidents
             ->map(
@@ -230,6 +252,12 @@ class SecurityIncidentController extends Controller
                 )
             )
             ->when(
+                $priority !== null,
+                fn ($query) => $query->whereTriagePriority(
+                    $priority
+                )
+            )
+            ->when(
                 $pic === 'unassigned',
                 fn ($query) => $query->whereNull(
                     'assigned_to_user_id'
@@ -244,8 +272,7 @@ class SecurityIncidentController extends Controller
                     (int) $pic
                 )
             )
-            ->latest('opened_at')
-            ->latest('id')
+            ->orderByTriagePriority()
             ->paginate(20)
             ->withQueryString();
 
@@ -307,7 +334,7 @@ class SecurityIncidentController extends Controller
             );
         } catch (Throwable $e) {
             return back()->withErrors([
-                'incident' => $e->getMessage(),
+                'incident' => $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -329,7 +356,7 @@ class SecurityIncidentController extends Controller
             );
         } catch (Throwable $e) {
             return back()->withErrors([
-                'incident' => $e->getMessage(),
+                'incident' => $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -351,7 +378,7 @@ class SecurityIncidentController extends Controller
             );
         } catch (Throwable $e) {
             return back()->withErrors([
-                'incident' => $e->getMessage(),
+                'incident' => $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -382,7 +409,7 @@ class SecurityIncidentController extends Controller
             );
         } catch (Throwable $e) {
             return back()->withErrors([
-                'incident' => $e->getMessage(),
+                'incident' => $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -404,7 +431,7 @@ class SecurityIncidentController extends Controller
             );
         } catch (Throwable $e) {
             return back()->withErrors([
-                'incident' => $e->getMessage(),
+                'incident' => $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -459,7 +486,7 @@ class SecurityIncidentController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'incident' => 'Gagal assign security incident: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -482,7 +509,7 @@ class SecurityIncidentController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'incident' => 'Gagal unassign security incident: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -514,7 +541,7 @@ class SecurityIncidentController extends Controller
         } catch (Throwable $e) {
             return back()->withErrors([
                 'incident' => 'Gagal menambahkan investigation note: '.
-                    $e->getMessage(),
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }

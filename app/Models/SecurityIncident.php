@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -217,6 +218,132 @@ class SecurityIncident extends Model
             'P3' => 'Normal',
             'P4' => 'Low',
             default => 'Closed',
+        };
+    }
+
+    public function scopeOrderByTriagePriority(
+        Builder $query
+    ): Builder {
+        [$expression, $bindings] = $this->triagePrioritySql($query);
+
+        return $query
+            ->orderByRaw(
+                "{$expression} ASC",
+                $bindings
+            )
+            ->orderBy('opened_at')
+            ->orderBy('id');
+    }
+
+    public function scopeWhereTriagePriority(
+        Builder $query,
+        string $priority
+    ): Builder {
+        [$expression, $bindings] = $this->triagePrioritySql($query);
+
+        $rank = match (strtoupper($priority)) {
+            'P1' => 1,
+            'P2' => 2,
+            'P3' => 3,
+            'P4' => 4,
+            'NONE' => 5,
+            default => null,
+        };
+
+        if ($rank === null) {
+            return $query;
+        }
+
+        return $query->whereRaw(
+            "{$expression} = ?",
+            [
+                ...$bindings,
+                $rank,
+            ]
+        );
+    }
+
+    /** @return array{0: string, 1: list<mixed>} */
+    private function triagePrioritySql(Builder $query): array
+    {
+        $slaMinutes = [
+            'CRITICAL' => (int) config('security.incident_response_sla_minutes.CRITICAL', 15),
+            'HIGH' => (int) config('security.incident_response_sla_minutes.HIGH', 60),
+            'MEDIUM' => (int) config('security.incident_response_sla_minutes.MEDIUM', 240),
+            'LOW' => (int) config('security.incident_response_sla_minutes.LOW', 1440),
+        ];
+
+        $warningStartsAfter = [
+            'MEDIUM' => $slaMinutes['MEDIUM'] - max(1, (int) ceil($slaMinutes['MEDIUM'] * 0.25)),
+            'LOW' => $slaMinutes['LOW'] - max(1, (int) ceil($slaMinutes['LOW'] * 0.25)),
+        ];
+
+        $driver = $query->getConnection()->getDriverName();
+        $lateAcknowledgement = $this->lateAcknowledgementSql($driver);
+        $severity = "UPPER(COALESCE(severity, ''))";
+        $lowOrUnknown = "{$severity} NOT IN ('CRITICAL', 'HIGH', 'MEDIUM')";
+
+        return [
+            <<<SQL
+        CASE
+            WHEN UPPER(COALESCE(status, '')) = 'CLOSED' THEN 5
+
+            WHEN opened_at IS NOT NULL
+                AND acknowledged_at IS NOT NULL
+                AND (
+                    ({$severity} = 'CRITICAL' AND {$lateAcknowledgement})
+                    OR ({$severity} = 'HIGH' AND {$lateAcknowledgement})
+                    OR ({$severity} = 'MEDIUM' AND {$lateAcknowledgement})
+                    OR ({$lowOrUnknown} AND {$lateAcknowledgement})
+                )
+                THEN 1
+
+            WHEN opened_at IS NOT NULL
+                AND acknowledged_at IS NULL
+                AND (
+                    ({$severity} = 'CRITICAL' AND opened_at < ?)
+                    OR ({$severity} = 'HIGH' AND opened_at < ?)
+                    OR ({$severity} = 'MEDIUM' AND opened_at < ?)
+                    OR ({$lowOrUnknown} AND opened_at < ?)
+                )
+                THEN 1
+
+            WHEN {$severity} = 'CRITICAL' THEN 1
+
+            WHEN opened_at IS NOT NULL
+                AND acknowledged_at IS NULL
+                AND (
+                    ({$severity} = 'MEDIUM' AND opened_at <= ?)
+                    OR ({$lowOrUnknown} AND opened_at <= ?)
+                )
+                THEN 2
+
+            WHEN {$severity} = 'HIGH' THEN 2
+            WHEN {$severity} = 'MEDIUM' THEN 3
+            ELSE 4
+        END
+        SQL,
+            [
+                $slaMinutes['CRITICAL'],
+                $slaMinutes['HIGH'],
+                $slaMinutes['MEDIUM'],
+                $slaMinutes['LOW'],
+                now()->subMinutes($slaMinutes['CRITICAL']),
+                now()->subMinutes($slaMinutes['HIGH']),
+                now()->subMinutes($slaMinutes['MEDIUM']),
+                now()->subMinutes($slaMinutes['LOW']),
+                now()->subMinutes($warningStartsAfter['MEDIUM']),
+                now()->subMinutes($warningStartsAfter['LOW']),
+            ],
+        ];
+    }
+
+    private function lateAcknowledgementSql(string $driver): string
+    {
+        return match ($driver) {
+            'mysql', 'mariadb' => 'acknowledged_at > DATE_ADD(opened_at, INTERVAL ? MINUTE)',
+            'pgsql' => "acknowledged_at > opened_at + (? * INTERVAL '1 minute')",
+            default => "acknowledged_at > datetime(opened_at, '+' || ? || ' minutes')",
         };
     }
 

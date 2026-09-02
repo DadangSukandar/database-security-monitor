@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\DatabaseConnection;
+use App\Models\DiscoveredColumn;
 use App\Models\DiscoveredDatabase;
 use App\Models\DiscoveredTable;
-use App\Models\DiscoveredColumn;
 use App\Services\DatabaseConnectorService;
 use Illuminate\Http\Request;
 use Throwable;
@@ -29,7 +29,6 @@ class DatabaseConnectionController extends Controller
         );
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | CREATE
@@ -42,7 +41,6 @@ class DatabaseConnectionController extends Controller
             'database-connections.create'
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -109,7 +107,6 @@ class DatabaseConnectionController extends Controller
             ],
         ]);
 
-
         /*
         |--------------------------------------------------------------------------
         | SIMPAN CONNECTION
@@ -119,7 +116,6 @@ class DatabaseConnectionController extends Controller
         $connection = DatabaseConnection::create(
             $validated
         );
-
 
         try {
 
@@ -133,7 +129,6 @@ class DatabaseConnectionController extends Controller
                 $connection
             );
 
-
             /*
             |--------------------------------------------------------------------------
             | UPDATE LAST CONNECTED
@@ -143,7 +138,6 @@ class DatabaseConnectionController extends Controller
             $connection->update([
                 'last_connected_at' => now(),
             ]);
-
 
             return redirect()
                 ->route(
@@ -155,7 +149,6 @@ class DatabaseConnectionController extends Controller
                     'Koneksi berhasil dibuat dan berhasil terhubung.'
                 );
 
-
         } catch (Throwable $e) {
 
             /*
@@ -166,17 +159,14 @@ class DatabaseConnectionController extends Controller
 
             $connection->delete();
 
-
             return back()
-                ->withInput()
+                ->withInput($request->except('password'))
                 ->withErrors([
-                    'connection' =>
-                        'Koneksi gagal: ' .
-                        $e->getMessage(),
+                    'connection' => 'Koneksi gagal: '.
+                        $this->safeExceptionDetail($e),
                 ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -192,13 +182,11 @@ class DatabaseConnectionController extends Controller
             'discoveredDatabases.tables.columns',
         ]);
 
-
         return view(
             'database-connections.show',
             compact('databaseConnection')
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -217,28 +205,23 @@ class DatabaseConnectionController extends Controller
                 $databaseConnection
             );
 
-
             $databaseConnection->update([
                 'last_connected_at' => now(),
             ]);
-
 
             return back()->with(
                 'success',
                 'Database connection berhasil.'
             );
 
-
         } catch (Throwable $e) {
 
             return back()->withErrors([
-                'connection' =>
-                    'Connection failed: ' .
-                    $e->getMessage(),
+                'connection' => 'Connection failed: '.
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -263,7 +246,6 @@ class DatabaseConnectionController extends Controller
                 $databaseConnection
             );
 
-
             /*
             |--------------------------------------------------------------------------
             | HAPUS HASIL SCAN LAMA
@@ -278,7 +260,6 @@ class DatabaseConnectionController extends Controller
                 $databaseConnection
             );
 
-
             /*
             |--------------------------------------------------------------------------
             | SCAN DATABASE YANG DIPILIH
@@ -289,7 +270,6 @@ class DatabaseConnectionController extends Controller
                 $databaseConnection,
                 $db
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -302,23 +282,19 @@ class DatabaseConnectionController extends Controller
                 'last_connected_at' => now(),
             ]);
 
-
             return back()->with(
                 'success',
                 'Database berhasil di-scan.'
             );
 
-
         } catch (Throwable $e) {
 
             return back()->withErrors([
-                'scan' =>
-                    'Scan gagal: ' .
-                    $e->getMessage(),
+                'scan' => 'Scan gagal: '.
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -341,7 +317,6 @@ class DatabaseConnectionController extends Controller
             $connection->id
         )->get();
 
-
         foreach ($databases as $database) {
 
             /*
@@ -354,7 +329,6 @@ class DatabaseConnectionController extends Controller
                 'discovered_database_id',
                 $database->id
             )->get();
-
 
             foreach ($tables as $table) {
 
@@ -369,7 +343,6 @@ class DatabaseConnectionController extends Controller
                     $table->id
                 )->delete();
 
-
                 /*
                 |--------------------------------------------------------------------------
                 | Hapus table
@@ -378,7 +351,6 @@ class DatabaseConnectionController extends Controller
 
                 $table->delete();
             }
-
 
             /*
             |--------------------------------------------------------------------------
@@ -389,7 +361,6 @@ class DatabaseConnectionController extends Controller
             $database->delete();
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -410,7 +381,6 @@ class DatabaseConnectionController extends Controller
 
         $databaseName = $connection->database;
 
-
         /*
         |--------------------------------------------------------------------------
         | Simpan database discovery
@@ -420,19 +390,15 @@ class DatabaseConnectionController extends Controller
         $database = DiscoveredDatabase::updateOrCreate(
 
             [
-                'database_connection_id' =>
-                    $connection->id,
+                'database_connection_id' => $connection->id,
 
-                'name' =>
-                    $databaseName,
+                'name' => $databaseName,
             ],
 
             [
-                'engine' =>
-                    $connection->driver,
+                'engine' => $connection->driver,
             ]
         );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -447,7 +413,6 @@ class DatabaseConnectionController extends Controller
             $databaseName
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -471,18 +436,17 @@ class DatabaseConnectionController extends Controller
         if ($connection->driver === 'mysql') {
 
             $tables = $db->select(
-                "SELECT
+                'SELECT
                     TABLE_SCHEMA,
                     TABLE_NAME,
                     TABLE_TYPE
                  FROM information_schema.tables
                  WHERE TABLE_SCHEMA = ?
-                 ORDER BY TABLE_NAME",
+                 ORDER BY TABLE_NAME',
                 [
                     $databaseName,
                 ]
             );
-
 
             foreach ($tables as $table) {
 
@@ -496,10 +460,8 @@ class DatabaseConnectionController extends Controller
                 );
             }
 
-
             return;
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -512,20 +474,18 @@ class DatabaseConnectionController extends Controller
             $schema = $connection->schema
                 ?: 'public';
 
-
             $tables = $db->select(
-                "SELECT
+                'SELECT
                     table_schema,
                     table_name,
                     table_type
                  FROM information_schema.tables
                  WHERE table_schema = ?
-                 ORDER BY table_name",
+                 ORDER BY table_name',
                 [
                     $schema,
                 ]
             );
-
 
             foreach ($tables as $table) {
 
@@ -540,7 +500,6 @@ class DatabaseConnectionController extends Controller
             }
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -566,22 +525,17 @@ class DatabaseConnectionController extends Controller
         $table = DiscoveredTable::updateOrCreate(
 
             [
-                'discovered_database_id' =>
-                    $database->id,
+                'discovered_database_id' => $database->id,
 
-                'schema_name' =>
-                    $schema,
+                'schema_name' => $schema,
 
-                'name' =>
-                    $name,
+                'name' => $name,
             ],
 
             [
-                'type' =>
-                    $type,
+                'type' => $type,
             ]
         );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -594,7 +548,6 @@ class DatabaseConnectionController extends Controller
             $table->id
         )->delete();
 
-
         /*
         |--------------------------------------------------------------------------
         | MYSQL COLUMNS
@@ -604,7 +557,7 @@ class DatabaseConnectionController extends Controller
         if ($connection->driver === 'mysql') {
 
             $columns = $db->select(
-                "SELECT
+                'SELECT
                     COLUMN_NAME,
                     DATA_TYPE,
                     IS_NULLABLE,
@@ -614,44 +567,35 @@ class DatabaseConnectionController extends Controller
                  FROM information_schema.columns
                  WHERE TABLE_SCHEMA = ?
                  AND TABLE_NAME = ?
-                 ORDER BY ORDINAL_POSITION",
+                 ORDER BY ORDINAL_POSITION',
                 [
                     $schema,
                     $name,
                 ]
             );
 
-
             foreach ($columns as $column) {
 
                 DiscoveredColumn::create([
 
-                    'discovered_table_id' =>
-                        $table->id,
+                    'discovered_table_id' => $table->id,
 
-                    'name' =>
-                        $column->COLUMN_NAME,
+                    'name' => $column->COLUMN_NAME,
 
-                    'data_type' =>
-                        $column->DATA_TYPE,
+                    'data_type' => $column->DATA_TYPE,
 
-                    'is_nullable' =>
-                        $column->IS_NULLABLE,
+                    'is_nullable' => $column->IS_NULLABLE,
 
-                    'default' =>
-                        $column->COLUMN_DEFAULT,
+                    'default' => $column->COLUMN_DEFAULT,
 
-                    'is_primary' =>
-                        strtoupper(
-                            $column->COLUMN_KEY ?? ''
-                        ) === 'PRI',
+                    'is_primary' => strtoupper(
+                        $column->COLUMN_KEY ?? ''
+                    ) === 'PRI',
                 ]);
             }
 
-
             return;
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -693,33 +637,25 @@ class DatabaseConnectionController extends Controller
                 ]
             );
 
-
             foreach ($columns as $column) {
 
                 DiscoveredColumn::create([
 
-                    'discovered_table_id' =>
-                        $table->id,
+                    'discovered_table_id' => $table->id,
 
-                    'name' =>
-                        $column->column_name,
+                    'name' => $column->column_name,
 
-                    'data_type' =>
-                        $column->data_type,
+                    'data_type' => $column->data_type,
 
-                    'is_nullable' =>
-                        $column->is_nullable,
+                    'is_nullable' => $column->is_nullable,
 
-                    'default' =>
-                        $column->column_default,
+                    'default' => $column->column_default,
 
-                    'is_primary' =>
-                        (bool) $column->is_primary,
+                    'is_primary' => (bool) $column->is_primary,
                 ]);
             }
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -741,7 +677,6 @@ class DatabaseConnectionController extends Controller
             $databaseConnection
         );
 
-
         /*
         |--------------------------------------------------------------------------
         | Hapus connection
@@ -749,7 +684,6 @@ class DatabaseConnectionController extends Controller
         */
 
         $databaseConnection->delete();
-
 
         return redirect()
             ->route(

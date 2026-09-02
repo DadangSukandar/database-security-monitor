@@ -1,8 +1,14 @@
 <?php
 
 use App\Models\SecurityAlert;
+use App\Models\User;
 
 it('records an alert acknowledgement in history', function () {
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user);
+
     $alert = SecurityAlert::query()->create([
         'severity' => 'HIGH',
         'title' => 'Repeated failed login',
@@ -27,6 +33,11 @@ it('records an alert acknowledgement in history', function () {
 });
 
 it('rejects a repeated acknowledgement without duplicating history', function () {
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user);
+
     $alert = SecurityAlert::query()->create([
         'severity' => 'MEDIUM',
         'title' => 'Unusual query pattern',
@@ -41,6 +52,11 @@ it('rejects a repeated acknowledgement without duplicating history', function ()
 });
 
 it('records resolution and clears lifecycle timestamps when reopened', function () {
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user);
+
     $alert = SecurityAlert::query()->create([
         'severity' => 'CRITICAL',
         'title' => 'Dangerous database operation',

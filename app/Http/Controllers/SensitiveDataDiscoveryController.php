@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\SensitiveDataFinding;
 use App\Services\SensitiveDataDiscoveryService;
-use Illuminate\Http\Request;
 use Throwable;
 
 class SensitiveDataDiscoveryController extends Controller
@@ -13,7 +12,7 @@ class SensitiveDataDiscoveryController extends Controller
     {
         $findings = SensitiveDataFinding::query()
             ->with([
-                'column.table.database'
+                'column.table.database',
             ])
             ->latest()
             ->paginate(25);
@@ -72,10 +71,10 @@ class SensitiveDataDiscoveryController extends Controller
                 )
                 ->with(
                     'success',
-                    'Sensitive Data Discovery selesai. ' .
-                    $result['findings'] .
-                    ' finding ditemukan dari ' .
-                    $result['columns'] .
+                    'Sensitive Data Discovery selesai. '.
+                    $result['findings'].
+                    ' finding ditemukan dari '.
+                    $result['columns'].
                     ' column.'
                 );
 
@@ -87,8 +86,8 @@ class SensitiveDataDiscoveryController extends Controller
                 )
                 ->with(
                     'error',
-                    'Scan gagal: ' .
-                    $e->getMessage()
+                    'Scan gagal: '.
+                    $this->safeExceptionDetail($e)
                 );
         }
     }

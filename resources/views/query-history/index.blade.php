@@ -369,7 +369,7 @@
                                         Error:
                                     </strong>
 
-                                    {{ $activity->error_message }}
+                                    Database operation failed. Detail teknis tersedia di log aplikasi.
 
                                 </td>
 

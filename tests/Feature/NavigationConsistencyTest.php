@@ -1,6 +1,17 @@
 <?php
 
-it('renders the shared dashboard navigation across application pages', function (string $routeName) {
+use App\Models\User;
+
+it('renders the shared dashboard navigation across application pages', function (
+    string $routeName,
+    bool $requiresAuthentication
+) {
+    if ($requiresAuthentication) {
+        $this->actingAs(
+            User::factory()->create()
+        );
+    }
+
     $this->get(route($routeName))
         ->assertOk()
         ->assertSeeInOrder([
@@ -17,8 +28,20 @@ it('renders the shared dashboard navigation across application pages', function 
             'Security Reports',
         ]);
 })->with([
-    'dashboard' => 'dashboard',
-    'shared blade layout' => 'security-alerts.index',
-    'activity standalone page' => 'database-activities.index',
-    'SQL console standalone page' => 'sql-query.index',
+    'dashboard' => [
+        'dashboard',
+        false,
+    ],
+    'shared blade layout' => [
+        'security-alerts.index',
+        true,
+    ],
+    'activity standalone page' => [
+        'database-activities.index',
+        true,
+    ],
+    'SQL console standalone page' => [
+        'sql-query.index',
+        true,
+    ],
 ]);

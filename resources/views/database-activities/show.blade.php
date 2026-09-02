@@ -370,10 +370,7 @@
 
             <div class="body">
 
-                <pre>{{
-                    $databaseActivity
-                        ->error_message
-                }}</pre>
+                <pre>Database operation failed. Detail teknis tersedia di log aplikasi.</pre>
 
             </div>
 

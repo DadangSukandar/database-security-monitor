@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\SecurityAlert;
+use App\Models\User;
 
 it('assigns response targets based on alert severity', function (string $severity, int $minutes) {
     $alert = new SecurityAlert([
@@ -44,6 +45,8 @@ it('identifies breached due soon and met response targets', function () {
 });
 
 it('shows SLA escalation counts on the security dashboard', function () {
+    $this->actingAs(User::factory()->create());
+
     SecurityAlert::query()->create([
         'alert_type' => 'VULNERABILITY',
         'severity' => 'CRITICAL',
@@ -67,6 +70,11 @@ it('shows SLA escalation counts on the security dashboard', function () {
 });
 
 it('displays response SLA on alert list and detail pages', function () {
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user);
+
     $alert = SecurityAlert::query()->create([
         'alert_type' => 'DANGEROUS_DDL',
         'severity' => 'CRITICAL',

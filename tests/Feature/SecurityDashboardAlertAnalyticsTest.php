@@ -2,8 +2,11 @@
 
 use App\Models\SecurityAlert;
 use App\Models\SecurityAlertHistory;
+use App\Models\User;
 
 it('provides alert lifecycle analytics to the security dashboard', function () {
+    $this->actingAs(User::factory()->create());
+
     $detectedAt = now()->subHours(2);
 
     $resolvedAlert = SecurityAlert::query()->create([
@@ -44,6 +47,8 @@ it('provides alert lifecycle analytics to the security dashboard', function () {
 });
 
 it('returns empty lifecycle metrics when no alerts exist', function () {
+    $this->actingAs(User::factory()->create());
+
     $this->get(route('security-dashboard'))
         ->assertOk()
         ->assertViewHas('acknowledgedAlerts', 0)

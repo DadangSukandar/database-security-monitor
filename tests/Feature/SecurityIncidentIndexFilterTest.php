@@ -465,4 +465,111 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
         $response->assertRedirect();
     }
+
+    public function test_it_filters_by_triage_priority(): void
+    {
+        [$user] = $this->createUserWithCurrentTeam();
+
+        $now = now();
+
+        $p1 = $this->createIncident([
+            'incident_number' => 'INC-PRIORITY-P1',
+            'severity' => 'CRITICAL',
+            'opened_at' => $now->copy()->subMinutes(5),
+        ]);
+
+        $p3 = $this->createIncident([
+            'incident_number' => 'INC-PRIORITY-P3',
+            'severity' => 'MEDIUM',
+            'opened_at' => $now->copy()->subMinutes(30),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('security-incidents.index', [
+                'priority' => 'P1',
+            ]));
+
+        $response
+            ->assertOk()
+            ->assertSee($p1->incident_number)
+            ->assertDontSee($p3->incident_number);
+    }
+
+    public function test_it_filters_sla_promoted_priority(): void
+    {
+        [$user] = $this->createUserWithCurrentTeam();
+
+        $now = now();
+
+        $breachedLow = $this->createIncident([
+            'incident_number' => 'INC-BREACHED-P1',
+            'severity' => 'LOW',
+            'opened_at' => $now->copy()->subMinutes(1441),
+        ]);
+
+        $onTrackLow = $this->createIncident([
+            'incident_number' => 'INC-LOW-P4',
+            'severity' => 'LOW',
+            'opened_at' => $now->copy()->subMinutes(30),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('security-incidents.index', [
+                'priority' => 'P1',
+            ]));
+
+        $response
+            ->assertOk()
+            ->assertSee($breachedLow->incident_number)
+            ->assertDontSee($onTrackLow->incident_number);
+    }
+
+    public function test_it_filters_closed_incidents_as_none_priority(): void
+    {
+        [$user] = $this->createUserWithCurrentTeam();
+
+        $now = now();
+
+        $closed = $this->createIncident([
+            'incident_number' => 'INC-PRIORITY-NONE',
+            'severity' => 'CRITICAL',
+            'status' => 'CLOSED',
+            'opened_at' => $now->copy()->subHours(2),
+            'closed_at' => $now->copy()->subHour(),
+        ]);
+
+        $active = $this->createIncident([
+            'incident_number' => 'INC-ACTIVE-P1',
+            'severity' => 'CRITICAL',
+            'status' => 'OPEN',
+            'opened_at' => $now->copy()->subMinutes(5),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('security-incidents.index', [
+                'priority' => 'NONE',
+            ]));
+
+        $response
+            ->assertOk()
+            ->assertSee($closed->incident_number)
+            ->assertDontSee($active->incident_number);
+    }
+
+    public function test_it_rejects_invalid_priority_filter(): void
+    {
+        [$user] = $this->createUserWithCurrentTeam();
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('security-incidents.index', [
+                'priority' => 'URGENT',
+            ]));
+
+        $response
+            ->assertSessionHasErrors('priority');
+    }
 }

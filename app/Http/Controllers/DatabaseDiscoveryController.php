@@ -3,11 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\DatabaseConnection;
+use App\Models\DiscoveredColumn;
 use App\Models\DiscoveredDatabase;
 use App\Models\DiscoveredTable;
-use App\Models\DiscoveredColumn;
 use App\Services\DatabaseDiscoveryService;
-use Illuminate\Http\Request;
 use Throwable;
 
 class DatabaseDiscoveryController extends Controller
@@ -27,24 +26,19 @@ class DatabaseDiscoveryController extends Controller
                 ->latest()
                 ->get();
 
-
         $connections =
             DatabaseConnection::query()
                 ->orderBy('name')
                 ->get();
 
-
         $totalDatabases =
             $databases->count();
-
 
         $totalTables =
             DiscoveredTable::count();
 
-
         $totalColumns =
             DiscoveredColumn::count();
-
 
         return view(
             'database-discovery.index',
@@ -57,7 +51,6 @@ class DatabaseDiscoveryController extends Controller
             )
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -77,17 +70,16 @@ class DatabaseDiscoveryController extends Controller
                     $databaseConnection
                 );
 
-
             return redirect()
                 ->route(
                     'database-discovery.index'
                 )
                 ->with(
                     'success',
-                    'Discovery selesai. ' .
-                    $result['tables'] .
-                    ' tables dan ' .
-                    $result['columns'] .
+                    'Discovery selesai. '.
+                    $result['tables'].
+                    ' tables dan '.
+                    $result['columns'].
                     ' columns ditemukan.'
                 );
 
@@ -99,12 +91,11 @@ class DatabaseDiscoveryController extends Controller
                 )
                 ->with(
                     'error',
-                    'Discovery gagal: ' .
-                    $e->getMessage()
+                    'Discovery gagal: '.
+                    $this->safeExceptionDetail($e)
                 );
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -128,9 +119,8 @@ class DatabaseDiscoveryController extends Controller
                     ->orderBy(
                         'name'
                     );
-            }
+            },
         ]);
-
 
         return view(
             'database-discovery.show',
@@ -139,7 +129,6 @@ class DatabaseDiscoveryController extends Controller
             )
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -153,9 +142,8 @@ class DatabaseDiscoveryController extends Controller
 
         $discoveredTable->load([
             'database',
-            'columns'
+            'columns',
         ]);
-
 
         return view(
             'database-discovery.table',

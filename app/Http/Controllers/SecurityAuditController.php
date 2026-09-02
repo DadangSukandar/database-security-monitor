@@ -4,15 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Models\DatabaseConnection;
 use App\Models\SecurityFinding;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Throwable;
 use App\Services\SecurityAuditScanner;
+use App\Services\SecurityFindingLifecycleService;
+use Illuminate\Http\Request;
+use Throwable;
 
 class SecurityAuditController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'severity' => ['nullable', 'string', 'in:CRITICAL,HIGH,MEDIUM,LOW'],
+            'status' => ['nullable', 'string', 'in:OPEN,RESOLVED,IGNORED'],
+            'database_connection_id' => ['nullable', 'integer', 'exists:database_connections,id'],
+        ]);
         $query = SecurityFinding::query()
             ->with('databaseConnection')
             ->latest('detected_at');
@@ -167,27 +173,17 @@ class SecurityAuditController extends Controller
         Request $request,
         SecurityAuditScanner $scanner
     ) {
-        $connectionId = $request->input(
-            'database_connection_id'
+        $validated = $request->validate([
+            'database_connection_id' => [
+                'required',
+                'integer',
+                'exists:database_connections,id',
+            ],
+        ]);
+
+        $connection = DatabaseConnection::query()->findOrFail(
+            (int) $validated['database_connection_id']
         );
-
-        if (!$connectionId) {
-            return back()->withErrors([
-                'scan' =>
-                    'Pilih database connection terlebih dahulu.'
-            ]);
-        }
-
-        $connection = DatabaseConnection::find(
-            $connectionId
-        );
-
-        if (!$connection) {
-            return back()->withErrors([
-                'scan' =>
-                    'Database connection tidak ditemukan.'
-            ]);
-        }
 
         try {
 
@@ -199,17 +195,16 @@ class SecurityAuditController extends Controller
                 ->route('security-audit.index')
                 ->with(
                     'success',
-                    'Security audit berhasil. ' .
-                    $result['total'] .
+                    'Security audit berhasil. '.
+                    $result['total'].
                     ' finding ditemukan.'
                 );
 
         } catch (Throwable $e) {
 
             return back()->withErrors([
-                'scan' =>
-                    'Security audit gagal: ' .
-                    $e->getMessage()
+                'scan' => 'Security audit gagal: '.
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
@@ -234,54 +229,58 @@ class SecurityAuditController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function resolve(SecurityFinding $securityFinding)
-    {
-        $securityFinding->update([
-            'status' => 'RESOLVED',
-            'resolved_at' => now(),
-        ]);
+    public function resolve(
+        SecurityFinding $securityFinding,
+        SecurityFindingLifecycleService $lifecycle,
+    ) {
+        try {
+            $lifecycle->resolve($securityFinding, (int) auth()->id());
 
-        return back()->with(
-            'success',
-            'Security finding berhasil ditandai sebagai resolved.'
-        );
+            return back()->with(
+                'success',
+                'Security finding berhasil ditandai sebagai resolved.'
+            );
+        } catch (Throwable $exception) {
+            return back()->withErrors([
+                'finding' => 'Gagal resolve finding: '.$this->safeExceptionDetail($exception),
+            ]);
+        }
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Ignore
-    |--------------------------------------------------------------------------
-    */
+    public function ignore(
+        SecurityFinding $securityFinding,
+        SecurityFindingLifecycleService $lifecycle,
+    ) {
+        try {
+            $lifecycle->ignore($securityFinding, (int) auth()->id());
 
-    public function ignore(SecurityFinding $securityFinding)
-    {
-        $securityFinding->update([
-            'status' => 'IGNORED',
-        ]);
-
-        return back()->with(
-            'success',
-            'Security finding berhasil diabaikan.'
-        );
+            return back()->with(
+                'success',
+                'Security finding berhasil diabaikan.'
+            );
+        } catch (Throwable $exception) {
+            return back()->withErrors([
+                'finding' => 'Gagal ignore finding: '.$this->safeExceptionDetail($exception),
+            ]);
+        }
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Re-open
-    |--------------------------------------------------------------------------
-    */
+    public function reopen(
+        SecurityFinding $securityFinding,
+        SecurityFindingLifecycleService $lifecycle,
+    ) {
+        try {
+            $lifecycle->reopen($securityFinding, (int) auth()->id());
 
-    public function reopen(SecurityFinding $securityFinding)
-    {
-        $securityFinding->update([
-            'status' => 'OPEN',
-            'resolved_at' => null,
-        ]);
-
-        return back()->with(
-            'success',
-            'Security finding berhasil dibuka kembali.'
-        );
+            return back()->with(
+                'success',
+                'Security finding berhasil dibuka kembali.'
+            );
+        } catch (Throwable $exception) {
+            return back()->withErrors([
+                'finding' => 'Gagal reopen finding: '.$this->safeExceptionDetail($exception),
+            ]);
+        }
     }
 
     /*

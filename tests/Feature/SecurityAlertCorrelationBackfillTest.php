@@ -3,6 +3,7 @@
 use App\Models\DatabaseConnection;
 use App\Models\SecurityAlert;
 use App\Models\SecurityAlertHistory;
+use App\Models\User;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
 use App\Services\SecurityAlertFingerprintService;
@@ -465,7 +466,8 @@ it('uses only canonical alerts for generation SLA and dashboard analytics', func
         ->expectsOutput('Escalated 0 security alert(s).')
         ->assertSuccessful();
 
-    $this->get(route('security-dashboard'))
+    $this->actingAs(User::factory()->create())
+        ->get(route('security-dashboard'))
         ->assertOk()
         ->assertViewHas('totalAlerts', 1)
         ->assertViewHas('breachedSlaAlerts', 1);

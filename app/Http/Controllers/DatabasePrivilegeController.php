@@ -15,7 +15,6 @@ class DatabasePrivilegeController extends Controller
         $query = DatabasePrivilege::query()
             ->with('databaseConnection');
 
-
         /*
         |--------------------------------------------------------------------------
         | Search
@@ -31,29 +30,28 @@ class DatabasePrivilegeController extends Controller
                 $q->where(
                     'username',
                     'like',
-                    '%' . $search . '%'
+                    '%'.$search.'%'
                 );
 
                 $q->orWhere(
                     'table_name',
                     'like',
-                    '%' . $search . '%'
+                    '%'.$search.'%'
                 );
 
                 $q->orWhere(
                     'database_name',
                     'like',
-                    '%' . $search . '%'
+                    '%'.$search.'%'
                 );
 
                 $q->orWhere(
                     'privilege',
                     'like',
-                    '%' . $search . '%'
+                    '%'.$search.'%'
                 );
             });
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -68,7 +66,6 @@ class DatabasePrivilegeController extends Controller
                 $request->input('connection')
             );
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -86,7 +83,6 @@ class DatabasePrivilegeController extends Controller
             );
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Risk
@@ -103,17 +99,14 @@ class DatabasePrivilegeController extends Controller
             );
         }
 
-
         $privileges = $query
             ->latest()
             ->paginate(30)
             ->withQueryString();
 
-
         $connections = DatabaseConnection::query()
             ->orderBy('name')
             ->get();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -142,7 +135,6 @@ class DatabasePrivilegeController extends Controller
                 true
             )->count();
 
-
         return view(
             'database-privileges.index',
             compact(
@@ -155,7 +147,6 @@ class DatabasePrivilegeController extends Controller
             )
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -173,7 +164,6 @@ class DatabasePrivilegeController extends Controller
                 $databaseConnection
             );
 
-
             /*
             |--------------------------------------------------------------------------
             | Delete previous scan
@@ -184,7 +174,6 @@ class DatabasePrivilegeController extends Controller
                 'database_connection_id',
                 $databaseConnection->id
             )->delete();
-
 
             /*
             |--------------------------------------------------------------------------
@@ -202,7 +191,6 @@ class DatabasePrivilegeController extends Controller
                 );
             }
 
-
             /*
             |--------------------------------------------------------------------------
             | PostgreSQL
@@ -217,16 +205,12 @@ class DatabasePrivilegeController extends Controller
                     $databaseConnection,
                     $db
                 );
-            }
-
-
-            else {
+            } else {
 
                 throw new \RuntimeException(
                     'Driver tidak didukung.'
                 );
             }
-
 
             return back()->with(
                 'success',
@@ -236,13 +220,11 @@ class DatabasePrivilegeController extends Controller
         } catch (Throwable $e) {
 
             return back()->withErrors([
-                'scan' =>
-                    'Privilege scan gagal: ' .
-                    $e->getMessage()
+                'scan' => 'Privilege scan gagal: '.
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -261,7 +243,7 @@ class DatabasePrivilegeController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $users = $db->select("
+        $users = $db->select('
             SELECT
                 User,
                 Host,
@@ -282,62 +264,44 @@ class DatabasePrivilegeController extends Controller
                 Trigger_priv,
                 Grant_priv
             FROM mysql.user
-        ");
-
+        ');
 
         foreach ($users as $user) {
 
             $privileges = [
 
-                'SELECT' =>
-                    $user->Select_priv,
+                'SELECT' => $user->Select_priv,
 
-                'INSERT' =>
-                    $user->Insert_priv,
+                'INSERT' => $user->Insert_priv,
 
-                'UPDATE' =>
-                    $user->Update_priv,
+                'UPDATE' => $user->Update_priv,
 
-                'DELETE' =>
-                    $user->Delete_priv,
+                'DELETE' => $user->Delete_priv,
 
-                'CREATE' =>
-                    $user->Create_priv,
+                'CREATE' => $user->Create_priv,
 
-                'DROP' =>
-                    $user->Drop_priv,
+                'DROP' => $user->Drop_priv,
 
-                'ALTER' =>
-                    $user->Alter_priv,
+                'ALTER' => $user->Alter_priv,
 
-                'INDEX' =>
-                    $user->Index_priv,
+                'INDEX' => $user->Index_priv,
 
-                'CREATE VIEW' =>
-                    $user->Create_view_priv,
+                'CREATE VIEW' => $user->Create_view_priv,
 
-                'SHOW VIEW' =>
-                    $user->Show_view_priv,
+                'SHOW VIEW' => $user->Show_view_priv,
 
-                'CREATE ROUTINE' =>
-                    $user->Create_routine_priv,
+                'CREATE ROUTINE' => $user->Create_routine_priv,
 
-                'ALTER ROUTINE' =>
-                    $user->Alter_routine_priv,
+                'ALTER ROUTINE' => $user->Alter_routine_priv,
 
-                'EXECUTE' =>
-                    $user->Execute_priv,
+                'EXECUTE' => $user->Execute_priv,
 
-                'EVENT' =>
-                    $user->Event_priv,
+                'EVENT' => $user->Event_priv,
 
-                'TRIGGER' =>
-                    $user->Trigger_priv,
+                'TRIGGER' => $user->Trigger_priv,
 
-                'GRANT' =>
-                    $user->Grant_priv,
+                'GRANT' => $user->Grant_priv,
             ];
-
 
             foreach ($privileges as $privilege => $enabled) {
 
@@ -345,52 +309,38 @@ class DatabasePrivilegeController extends Controller
                     continue;
                 }
 
-
                 $risk = $this->calculateRisk(
                     $privilege,
                     'NO'
                 );
 
-
                 DatabasePrivilege::create([
 
-                    'database_connection_id' =>
-                        $connection->id,
+                    'database_connection_id' => $connection->id,
 
-                    'username' =>
-                        $user->User,
+                    'username' => $user->User,
 
-                    'host' =>
-                        $user->Host,
+                    'host' => $user->Host,
 
-                    'database_name' =>
-                        '*',
+                    'database_name' => '*',
 
-                    'schema_name' =>
-                        null,
+                    'schema_name' => null,
 
-                    'table_name' =>
-                        '*',
+                    'table_name' => '*',
 
-                    'privilege' =>
-                        $privilege,
+                    'privilege' => $privilege,
 
-                    'is_grantable' =>
-                        $privilege === 'GRANT',
+                    'is_grantable' => $privilege === 'GRANT',
 
-                    'risk_level' =>
-                        $risk['level'],
+                    'risk_level' => $risk['level'],
 
-                    'risk_reason' =>
-                        'Global MySQL privilege. ' .
+                    'risk_reason' => 'Global MySQL privilege. '.
                         $risk['reason'],
 
-                    'last_scanned_at' =>
-                        now(),
+                    'last_scanned_at' => now(),
                 ]);
             }
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -398,7 +348,7 @@ class DatabasePrivilegeController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $databasePrivileges = $db->select("
+        $databasePrivileges = $db->select('
             SELECT
                 User,
                 Host,
@@ -420,62 +370,44 @@ class DatabasePrivilegeController extends Controller
                 Event_priv,
                 Trigger_priv
             FROM mysql.db
-        ");
-
+        ');
 
         foreach ($databasePrivileges as $row) {
 
             $privileges = [
 
-                'SELECT' =>
-                    $row->Select_priv,
+                'SELECT' => $row->Select_priv,
 
-                'INSERT' =>
-                    $row->Insert_priv,
+                'INSERT' => $row->Insert_priv,
 
-                'UPDATE' =>
-                    $row->Update_priv,
+                'UPDATE' => $row->Update_priv,
 
-                'DELETE' =>
-                    $row->Delete_priv,
+                'DELETE' => $row->Delete_priv,
 
-                'CREATE' =>
-                    $row->Create_priv,
+                'CREATE' => $row->Create_priv,
 
-                'DROP' =>
-                    $row->Drop_priv,
+                'DROP' => $row->Drop_priv,
 
-                'ALTER' =>
-                    $row->Alter_priv,
+                'ALTER' => $row->Alter_priv,
 
-                'GRANT' =>
-                    $row->Grant_priv,
+                'GRANT' => $row->Grant_priv,
 
-                'INDEX' =>
-                    $row->Index_priv,
+                'INDEX' => $row->Index_priv,
 
-                'CREATE VIEW' =>
-                    $row->Create_view_priv,
+                'CREATE VIEW' => $row->Create_view_priv,
 
-                'SHOW VIEW' =>
-                    $row->Show_view_priv,
+                'SHOW VIEW' => $row->Show_view_priv,
 
-                'CREATE ROUTINE' =>
-                    $row->Create_routine_priv,
+                'CREATE ROUTINE' => $row->Create_routine_priv,
 
-                'ALTER ROUTINE' =>
-                    $row->Alter_routine_priv,
+                'ALTER ROUTINE' => $row->Alter_routine_priv,
 
-                'EXECUTE' =>
-                    $row->Execute_priv,
+                'EXECUTE' => $row->Execute_priv,
 
-                'EVENT' =>
-                    $row->Event_priv,
+                'EVENT' => $row->Event_priv,
 
-                'TRIGGER' =>
-                    $row->Trigger_priv,
+                'TRIGGER' => $row->Trigger_priv,
             ];
-
 
             foreach ($privileges as $privilege => $enabled) {
 
@@ -483,54 +415,40 @@ class DatabasePrivilegeController extends Controller
                     continue;
                 }
 
-
                 $risk = $this->calculateRisk(
                     $privilege,
                     $row->Grant_priv
                 );
 
-
                 DatabasePrivilege::create([
 
-                    'database_connection_id' =>
-                        $connection->id,
+                    'database_connection_id' => $connection->id,
 
-                    'username' =>
-                        $row->User,
+                    'username' => $row->User,
 
-                    'host' =>
-                        $row->Host,
+                    'host' => $row->Host,
 
-                    'database_name' =>
-                        $row->Db,
+                    'database_name' => $row->Db,
 
-                    'schema_name' =>
-                        null,
+                    'schema_name' => null,
 
-                    'table_name' =>
-                        '*',
+                    'table_name' => '*',
 
-                    'privilege' =>
-                        $privilege,
+                    'privilege' => $privilege,
 
-                    'is_grantable' =>
-                        strtoupper(
-                            (string) $row->Grant_priv
-                        ) === 'Y',
+                    'is_grantable' => strtoupper(
+                        (string) $row->Grant_priv
+                    ) === 'Y',
 
-                    'risk_level' =>
-                        $risk['level'],
+                    'risk_level' => $risk['level'],
 
-                    'risk_reason' =>
-                        'Database-level privilege. ' .
+                    'risk_reason' => 'Database-level privilege. '.
                         $risk['reason'],
 
-                    'last_scanned_at' =>
-                        now(),
+                    'last_scanned_at' => now(),
                 ]);
             }
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -538,7 +456,7 @@ class DatabasePrivilegeController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $tablePrivileges = $db->select("
+        $tablePrivileges = $db->select('
             SELECT
                 User,
                 Host,
@@ -547,8 +465,7 @@ class DatabasePrivilegeController extends Controller
                 Table_priv,
                 Grantor
             FROM mysql.tables_priv
-        ");
-
+        ');
 
         foreach ($tablePrivileges as $row) {
 
@@ -557,18 +474,15 @@ class DatabasePrivilegeController extends Controller
                 (string) $row->Table_priv
             );
 
-
             foreach ($privileges as $privilege) {
 
                 $privilege = strtoupper(
                     trim($privilege)
                 );
 
-
                 if ($privilege === '') {
                     continue;
                 }
-
 
                 $isGrantable =
                     str_contains(
@@ -578,53 +492,39 @@ class DatabasePrivilegeController extends Controller
                         'GRANT'
                     );
 
-
                 $risk = $this->calculateRisk(
                     $privilege,
                     $isGrantable ? 'YES' : 'NO'
                 );
 
-
                 DatabasePrivilege::create([
 
-                    'database_connection_id' =>
-                        $connection->id,
+                    'database_connection_id' => $connection->id,
 
-                    'username' =>
-                        $row->User,
+                    'username' => $row->User,
 
-                    'host' =>
-                        $row->Host,
+                    'host' => $row->Host,
 
-                    'database_name' =>
-                        $row->Db,
+                    'database_name' => $row->Db,
 
-                    'schema_name' =>
-                        null,
+                    'schema_name' => null,
 
-                    'table_name' =>
-                        $row->Table_name,
+                    'table_name' => $row->Table_name,
 
-                    'privilege' =>
-                        $privilege,
+                    'privilege' => $privilege,
 
-                    'is_grantable' =>
-                        $isGrantable,
+                    'is_grantable' => $isGrantable,
 
-                    'risk_level' =>
-                        $risk['level'],
+                    'risk_level' => $risk['level'],
 
-                    'risk_reason' =>
-                        'Table-level privilege. ' .
+                    'risk_reason' => 'Table-level privilege. '.
                         $risk['reason'],
 
-                    'last_scanned_at' =>
-                        now(),
+                    'last_scanned_at' => now(),
                 ]);
             }
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -660,7 +560,6 @@ class DatabasePrivilegeController extends Controller
             "
         );
 
-
         foreach ($rows as $row) {
 
             $risk =
@@ -669,49 +568,36 @@ class DatabasePrivilegeController extends Controller
                     $row->is_grantable
                 );
 
-
             DatabasePrivilege::create([
 
-                'database_connection_id' =>
-                    $connection->id,
+                'database_connection_id' => $connection->id,
 
-                'username' =>
-                    $row->grantee,
+                'username' => $row->grantee,
 
-                'host' =>
-                    null,
+                'host' => null,
 
-                'database_name' =>
-                    $row->table_catalog,
+                'database_name' => $row->table_catalog,
 
-                'schema_name' =>
-                    $row->table_schema,
+                'schema_name' => $row->table_schema,
 
-                'table_name' =>
-                    $row->table_name,
+                'table_name' => $row->table_name,
 
-                'privilege' =>
-                    strtoupper(
-                        $row->privilege_type
-                    ),
+                'privilege' => strtoupper(
+                    $row->privilege_type
+                ),
 
-                'is_grantable' =>
-                    strtoupper(
-                        $row->is_grantable
-                    ) === 'YES',
+                'is_grantable' => strtoupper(
+                    $row->is_grantable
+                ) === 'YES',
 
-                'risk_level' =>
-                    $risk['level'],
+                'risk_level' => $risk['level'],
 
-                'risk_reason' =>
-                    $risk['reason'],
+                'risk_reason' => $risk['reason'],
 
-                'last_scanned_at' =>
-                    now(),
+                'last_scanned_at' => now(),
             ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -728,12 +614,10 @@ class DatabasePrivilegeController extends Controller
             trim($privilege)
         );
 
-
         $grantable =
             strtoupper(
                 trim($grantable)
             ) === 'YES';
-
 
         /*
         |--------------------------------------------------------------------------
@@ -756,11 +640,9 @@ class DatabasePrivilegeController extends Controller
             return [
                 'level' => 'HIGH',
 
-                'reason' =>
-                    'Privilege dapat mengubah struktur atau hak akses database.',
+                'reason' => 'Privilege dapat mengubah struktur atau hak akses database.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -773,11 +655,9 @@ class DatabasePrivilegeController extends Controller
             return [
                 'level' => 'HIGH',
 
-                'reason' =>
-                    'User dapat memberikan privilege kepada user lain.',
+                'reason' => 'User dapat memberikan privilege kepada user lain.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -802,11 +682,9 @@ class DatabasePrivilegeController extends Controller
             return [
                 'level' => 'MEDIUM',
 
-                'reason' =>
-                    'User memiliki kemampuan melakukan perubahan terhadap database.',
+                'reason' => 'User memiliki kemampuan melakukan perubahan terhadap database.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -828,11 +706,9 @@ class DatabasePrivilegeController extends Controller
             return [
                 'level' => 'LOW',
 
-                'reason' =>
-                    'User memiliki akses membaca data.',
+                'reason' => 'User memiliki akses membaca data.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -843,8 +719,7 @@ class DatabasePrivilegeController extends Controller
         return [
             'level' => 'LOW',
 
-            'reason' =>
-                'Privilege database standar.',
+            'reason' => 'Privilege database standar.',
         ];
     }
 }

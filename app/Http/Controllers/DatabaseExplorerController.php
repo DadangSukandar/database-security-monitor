@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\DatabaseConnection;
-use App\Services\DatabaseConnectorService;
 use App\Services\DatabaseActivityLogger;
+use App\Services\DatabaseConnectorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -30,7 +30,6 @@ class DatabaseExplorerController extends Controller
                 $databaseConnection
             );
 
-
             /*
             |--------------------------------------------------------------------------
             | Validasi table
@@ -49,7 +48,6 @@ class DatabaseExplorerController extends Controller
                 'Table tidak ditemukan.'
             );
 
-
             /*
             |--------------------------------------------------------------------------
             | Column information
@@ -61,7 +59,6 @@ class DatabaseExplorerController extends Controller
                 $databaseConnection->driver,
                 $table
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -77,7 +74,6 @@ class DatabaseExplorerController extends Controller
                     $databaseConnection,
                     $table
                 );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -123,7 +119,6 @@ class DatabaseExplorerController extends Controller
 
             unset($column);
 
-
             /*
             |--------------------------------------------------------------------------
             | Query
@@ -131,7 +126,6 @@ class DatabaseExplorerController extends Controller
             */
 
             $query = $db->table($table);
-
 
             /*
             |--------------------------------------------------------------------------
@@ -142,7 +136,6 @@ class DatabaseExplorerController extends Controller
             $search = $request->input(
                 'search'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -160,7 +153,6 @@ class DatabaseExplorerController extends Controller
                 ),
                 100
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -183,7 +175,6 @@ class DatabaseExplorerController extends Controller
                     ) * 1000
                 );
 
-
                 /*
                 |--------------------------------------------------------------------------
                 | Mask sensitive data
@@ -198,8 +189,7 @@ class DatabaseExplorerController extends Controller
                         $row = (array) $row;
 
                         foreach (
-                            $sensitiveColumns
-                            as $columnName => $finding
+                            $sensitiveColumns as $columnName => $finding
                         ) {
 
                             if (
@@ -220,10 +210,9 @@ class DatabaseExplorerController extends Controller
                     }
                 );
 
-
                 $activityLogger->success(
                     $databaseConnection,
-                    'SELECT * FROM ' . $table,
+                    'SELECT * FROM '.$table,
                     'SELECT',
                     $table,
                     $executionTimeMs
@@ -238,10 +227,9 @@ class DatabaseExplorerController extends Controller
                     ) * 1000
                 );
 
-
                 $activityLogger->failed(
                     $databaseConnection,
-                    'SELECT * FROM ' . $table,
+                    'SELECT * FROM '.$table,
                     'SELECT',
                     $table,
                     $e,
@@ -250,7 +238,6 @@ class DatabaseExplorerController extends Controller
 
                 throw $e;
             }
-
 
             /*
             |--------------------------------------------------------------------------
@@ -273,10 +260,9 @@ class DatabaseExplorerController extends Controller
                     ) * 1000
                 );
 
-
                 $activityLogger->success(
                     $databaseConnection,
-                    'SELECT COUNT(*) FROM ' . $table,
+                    'SELECT COUNT(*) FROM '.$table,
                     'SELECT',
                     $table,
                     $countExecutionTime
@@ -291,10 +277,9 @@ class DatabaseExplorerController extends Controller
                     ) * 1000
                 );
 
-
                 $activityLogger->failed(
                     $databaseConnection,
-                    'SELECT COUNT(*) FROM ' . $table,
+                    'SELECT COUNT(*) FROM '.$table,
                     'SELECT',
                     $table,
                     $e,
@@ -303,7 +288,6 @@ class DatabaseExplorerController extends Controller
 
                 throw $e;
             }
-
 
             /*
             |--------------------------------------------------------------------------
@@ -328,13 +312,11 @@ class DatabaseExplorerController extends Controller
         } catch (Throwable $e) {
 
             return back()->withErrors([
-                'explorer' =>
-                    'Gagal membaca table: ' .
-                    $e->getMessage()
+                'explorer' => 'Gagal membaca table: '.
+                    $this->safeExceptionDetail($e),
             ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -386,7 +368,6 @@ class DatabaseExplorerController extends Controller
             ->keyBy('name');
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Mask Sensitive Value
@@ -421,7 +402,6 @@ class DatabaseExplorerController extends Controller
                 $length
             );
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -468,7 +448,6 @@ class DatabaseExplorerController extends Controller
             );
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Table Exists
@@ -495,7 +474,6 @@ class DatabaseExplorerController extends Controller
         return false;
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Get Columns
@@ -518,27 +496,20 @@ class DatabaseExplorerController extends Controller
 
         $result = [];
 
-
         foreach ($columns as $column) {
 
             $result[] = [
-                'name' =>
-                    $column,
+                'name' => $column,
 
-                'data_type' =>
-                    null,
+                'data_type' => null,
 
-                'is_nullable' =>
-                    null,
+                'is_nullable' => null,
 
-                'default' =>
-                    null,
+                'default' => null,
 
-                'key' =>
-                    null,
+                'key' => null,
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -552,7 +523,7 @@ class DatabaseExplorerController extends Controller
                 $db->getDatabaseName();
 
             $information = $db->select(
-                "
+                '
                 SELECT
                     COLUMN_NAME,
                     DATA_TYPE,
@@ -563,41 +534,33 @@ class DatabaseExplorerController extends Controller
                 WHERE TABLE_SCHEMA = ?
                 AND TABLE_NAME = ?
                 ORDER BY ORDINAL_POSITION
-                ",
+                ',
                 [
                     $database,
-                    $table
+                    $table,
                 ]
             );
-
 
             $result = [];
 
             foreach (
-                $information
-                as $column
+                $information as $column
             ) {
 
                 $result[] = [
 
-                    'name' =>
-                        $column->COLUMN_NAME,
+                    'name' => $column->COLUMN_NAME,
 
-                    'data_type' =>
-                        $column->DATA_TYPE,
+                    'data_type' => $column->DATA_TYPE,
 
-                    'is_nullable' =>
-                        $column->IS_NULLABLE,
+                    'is_nullable' => $column->IS_NULLABLE,
 
-                    'default' =>
-                        $column->COLUMN_DEFAULT,
+                    'default' => $column->COLUMN_DEFAULT,
 
-                    'key' =>
-                        $column->COLUMN_KEY,
+                    'key' => $column->COLUMN_KEY,
                 ];
             }
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -608,7 +571,7 @@ class DatabaseExplorerController extends Controller
         if ($driver === 'pgsql') {
 
             $information = $db->select(
-                "
+                '
                 SELECT
                     column_name,
                     data_type,
@@ -617,38 +580,30 @@ class DatabaseExplorerController extends Controller
                 FROM information_schema.columns
                 WHERE table_name = ?
                 ORDER BY ordinal_position
-                ",
+                ',
                 [$table]
             );
-
 
             $result = [];
 
             foreach (
-                $information
-                as $column
+                $information as $column
             ) {
 
                 $result[] = [
 
-                    'name' =>
-                        $column->column_name,
+                    'name' => $column->column_name,
 
-                    'data_type' =>
-                        $column->data_type,
+                    'data_type' => $column->data_type,
 
-                    'is_nullable' =>
-                        $column->is_nullable,
+                    'is_nullable' => $column->is_nullable,
 
-                    'default' =>
-                        $column->column_default,
+                    'default' => $column->column_default,
 
-                    'key' =>
-                        null,
+                    'key' => null,
                 ];
             }
         }
-
 
         return $result;
     }

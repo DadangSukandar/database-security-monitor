@@ -5,25 +5,27 @@ namespace App\Services;
 use App\Models\DatabaseActivity;
 use App\Models\DatabaseConnection;
 use Throwable;
-use App\Services\SecurityAlertService;
 
 class DatabaseActivityLogger
 {
+    public function __construct(
+        private readonly SecurityAlertService $securityAlertService,
+    ) {}
+
     public function success(
         DatabaseConnection $connection,
         string $query,
         string $action,
         ?string $table = null,
-        ?int $executionTimeMs = null
+        ?int $executionTimeMs = null,
     ): DatabaseActivity {
-
         return $this->write(
             connection: $connection,
             query: $query,
             action: $action,
             table: $table,
             status: 'success',
-            executionTimeMs: $executionTimeMs
+            executionTimeMs: $executionTimeMs,
         );
     }
 
@@ -33,8 +35,11 @@ class DatabaseActivityLogger
         string $action,
         ?string $table = null,
         ?Throwable $exception = null,
-        ?int $executionTimeMs = null
+        ?int $executionTimeMs = null,
     ): DatabaseActivity {
+        if ($exception !== null) {
+            report($exception);
+        }
 
         return $this->write(
             connection: $connection,
@@ -42,8 +47,10 @@ class DatabaseActivityLogger
             action: $action,
             table: $table,
             status: 'failed',
-            errorMessage: $exception?->getMessage(),
-            executionTimeMs: $executionTimeMs
+            errorMessage: $exception === null
+                ? null
+                : 'Database operation failed. Detail teknis tersedia di log aplikasi.',
+            executionTimeMs: $executionTimeMs,
         );
     }
 
@@ -54,78 +61,46 @@ class DatabaseActivityLogger
         ?string $table,
         string $status,
         ?string $errorMessage = null,
-        ?int $executionTimeMs = null
+        ?int $executionTimeMs = null,
     ): DatabaseActivity {
-
         $db = null;
 
         try {
-            $db = app(
-                DatabaseConnectorService::class
-            )->connect($connection);
-        } catch (Throwable) {
-            // Jangan menggagalkan proses utama hanya
-            // karena metadata connection gagal dibaca.
+            $db = app(DatabaseConnectorService::class)->connect($connection);
+        } catch (Throwable $exception) {
+            report($exception);
         }
 
-        return DatabaseActivity::create([
-            'database_connection_id' =>
-                $connection->id,
-
-            'database_name' =>
-                $db?->getDatabaseName(),
-
-            'schema_name' =>
-                $this->getSchemaName(
-                    $connection->driver
-                ),
-
-            'table_name' =>
-                $table,
-
-            'username' =>
-                $connection->username,
-
-            'client_ip' =>
-                request()->ip(),
-
-            'action' =>
-                strtoupper($action),
-
-            'query' =>
-                $query,
-
-            'status' =>
-                $status,
-
-            'error_message' =>
-                $errorMessage,
-
-            'execution_time_ms' =>
-                $executionTimeMs,
-
-            'executed_at' =>
-                now(),
+        $activity = DatabaseActivity::query()->create([
+            'database_connection_id' => $connection->id,
+            'database_name' => $db?->getDatabaseName(),
+            'schema_name' => $this->getSchemaName($connection->driver),
+            'table_name' => $table,
+            'username' => $connection->username,
+            'client_ip' => request()->ip(),
+            'action' => strtoupper($action),
+            'query' => $query,
+            'status' => $status,
+            'error_message' => $errorMessage,
+            'execution_time_ms' => $executionTimeMs,
+            'executed_at' => now(),
         ]);
 
-        $this->securityAlertService->analyze($activity);
+        try {
+            $this->securityAlertService->analyze($activity);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
+        return $activity;
     }
 
-    private function getSchemaName(
-        string $driver
-    ): ?string {
-
+    private function getSchemaName(string $driver): ?string
+    {
         if ($driver === 'pgsql') {
             return 'public';
         }
 
         return null;
-    }
-
-    public function __construct(
-        SecurityAlertService $securityAlertService
-    ) {
-        $this->securityAlertService =
-            $securityAlertService;
     }
 }

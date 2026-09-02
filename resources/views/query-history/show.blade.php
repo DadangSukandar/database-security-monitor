@@ -176,7 +176,7 @@
             </strong>
 
             <p>
-                {{ $databaseActivity->error_message }}
+                Database operation failed. Detail teknis tersedia di log aplikasi.
             </p>
 
         </div>

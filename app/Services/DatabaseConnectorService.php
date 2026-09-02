@@ -3,68 +3,50 @@
 namespace App\Services;
 
 use App\Models\DatabaseConnection;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class DatabaseConnectorService
 {
-    public function connect(DatabaseConnection $connection)
+    public function connect(DatabaseConnection $connection): Connection
     {
-        if (!in_array($connection->driver, ['mysql', 'pgsql'])) {
-            throw new RuntimeException(
-                'Driver database tidak didukung.'
-            );
-        }
-
-        $config = [
+        $db = $this->connectionFromData([
             'driver' => $connection->driver,
-
             'host' => $connection->host,
-
             'port' => $connection->port,
-
             'database' => $connection->database,
-
             'username' => $connection->username,
-
             'password' => $connection->getDecryptedPassword(),
+            'schema' => $connection->schema,
+        ]);
 
-            'charset' => 'utf8',
+        $this->enforceReadOnlySession($db, (string) $connection->driver);
 
-            'prefix' => '',
-
-            'prefix_indexes' => true,
-
-            'schema' => $connection->schema ?: 'public',
-
-            'sslmode' => 'prefer',
-        ];
-
-        Config::set(
-            'database.connections.monitoring',
-            $config
-        );
-
-        DB::purge('monitoring');
-
-        return DB::connection('monitoring');
+        return $db;
     }
 
-    public function test(
-        DatabaseConnection $connection
-    ): bool {
-        $db = $this->connect($connection);
-
-        $db->getPdo();
+    public function test(DatabaseConnection $connection): bool
+    {
+        $this->connect($connection)->getPdo();
 
         return true;
     }
 
-    public function connectionFromData(array $data)
+    /**
+     * @param  array{driver: string, host: string, port: int|string, database: string, username: string, password?: string|null, schema?: string|null}  $data
+     */
+    public function connectionFromData(array $data): Connection
     {
+        $driver = strtolower((string) $data['driver']);
+
+        if (! in_array($driver, ['mysql', 'pgsql'], true)) {
+            throw new RuntimeException('Driver database tidak didukung.');
+        }
+
         $config = [
-            'driver' => $data['driver'],
+            'driver' => $driver,
             'host' => $data['host'],
             'port' => $data['port'],
             'database' => $data['database'],
@@ -73,17 +55,25 @@ class DatabaseConnectorService
             'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,
-            'schema' => $data['schema'] ?? 'public',
-            'sslmode' => 'prefer',
+            'schema' => ($data['schema'] ?? null) ?: 'public',
+            'sslmode' => config('security.monitoring_sslmode', 'prefer'),
         ];
 
-        Config::set(
-            'database.connections.monitoring',
-            $config
-        );
-
+        Config::set('database.connections.monitoring', $config);
         DB::purge('monitoring');
 
-        return DB::connection('monitoring');
+        $connection = DB::connection('monitoring');
+        $connection->getPdo();
+
+        return $connection;
+    }
+
+    private function enforceReadOnlySession(Connection $connection, string $driver): void
+    {
+        match ($driver) {
+            'mysql' => $connection->statement('SET SESSION TRANSACTION READ ONLY'),
+            'pgsql' => $connection->statement('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY'),
+            default => throw new RuntimeException('Driver database tidak didukung.'),
+        };
     }
 }

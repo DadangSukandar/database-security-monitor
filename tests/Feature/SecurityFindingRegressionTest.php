@@ -1,8 +1,11 @@
 <?php
 
 use App\Models\SecurityFinding;
+use App\Models\User;
 
 it('searches findings using columns from the security findings table', function () {
+    $this->actingAs(User::factory()->create());
+
     SecurityFinding::query()->create([
         'finding_type' => 'PUBLIC_DATABASE_ACCOUNT',
         'category' => 'ACCESS_CONTROL',
@@ -22,6 +25,8 @@ it('searches findings using columns from the security findings table', function 
 });
 
 it('loads and displays finding history without swallowing relationship errors', function () {
+    $this->actingAs(User::factory()->create());
+
     $finding = SecurityFinding::query()->create([
         'finding_type' => 'WEAK_PRIVILEGE',
         'category' => 'PRIVILEGE',

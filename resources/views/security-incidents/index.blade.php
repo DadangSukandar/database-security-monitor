@@ -321,6 +321,40 @@
                 </select>
             </div>
 
+            {{-- Priority --}}
+            <div class="guard-filter-field">
+                <label for="priority">
+                    Priority
+                </label>
+
+                <select
+                    id="priority"
+                    name="priority"
+                >
+                    <option value="">
+                        All Priorities
+                    </option>
+
+                    @foreach([
+                        'P1' => 'P1 - Immediate',
+                        'P2' => 'P2 - High',
+                        'P3' => 'P3 - Normal',
+                        'P4' => 'P4 - Low',
+                        'NONE' => 'NONE - Closed',
+                    ] as $filterPriority => $filterPriorityLabel)
+
+                        <option
+                            value="{{ $filterPriority }}"
+                            @selected(
+                                request('priority') === $filterPriority
+                            )
+                        >
+                            {{ $filterPriorityLabel }}
+                        </option>
+
+                    @endforeach
+                </select>
+            </div>
 
             {{-- PIC --}}
             <div class="guard-filter-field">
@@ -376,6 +410,7 @@
                     request()->filled('search') ||
                     request()->filled('status') ||
                     request()->filled('severity') ||
+                    request()->filled('priority') ||
                     request()->filled('pic')
                 )
 
@@ -643,6 +678,7 @@
                                     request()->filled('search') ||
                                     request()->filled('status') ||
                                     request()->filled('severity') ||
+                                    request()->filled('priority') ||
                                     request()->filled('pic')
                                 )
 

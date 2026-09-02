@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'monitoring_sslmode' => env('MONITORING_DB_SSLMODE', 'prefer'),
+
     'alert_response_sla_minutes' => [
         'CRITICAL' => 15,
         'HIGH' => 60,

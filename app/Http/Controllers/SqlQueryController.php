@@ -5,37 +5,33 @@ namespace App\Http\Controllers;
 use App\Models\DatabaseConnection;
 use App\Services\DatabaseActivityLogger;
 use App\Services\DatabaseConnectorService;
+use App\Services\ReadOnlySqlGuard;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Throwable;
 
 class SqlQueryController extends Controller
 {
-    public function index()
+    public function index(): View
     {
-        $connections = DatabaseConnection::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
-
-        return view(
-            'sql-query.index',
-            compact('connections')
-        );
+        return view('sql-query.index', [
+            'connections' => $this->activeConnections(),
+        ]);
     }
-
 
     public function execute(
         Request $request,
         DatabaseConnectorService $connector,
-        DatabaseActivityLogger $activityLogger
-    ) {
-        $request->validate([
+        DatabaseActivityLogger $activityLogger,
+        ReadOnlySqlGuard $readOnlySqlGuard,
+    ): View|RedirectResponse {
+        $validated = $request->validate([
             'database_connection_id' => [
                 'required',
                 'integer',
                 'exists:database_connections,id',
             ],
-
             'query' => [
                 'required',
                 'string',
@@ -43,301 +39,95 @@ class SqlQueryController extends Controller
             ],
         ]);
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Ambil Connection
-        |--------------------------------------------------------------------------
-        */
-
-        $databaseConnection =
-            DatabaseConnection::findOrFail(
-                $request->database_connection_id
-            );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Bersihkan Query
-        |--------------------------------------------------------------------------
-        */
-
-        $sql = trim(
-            $request->input('query')
+        $databaseConnection = DatabaseConnection::query()->findOrFail(
+            (int) $validated['database_connection_id']
         );
 
+        $sql = trim((string) $validated['query']);
+        $validationError = $readOnlySqlGuard->validationError(
+            $sql,
+            allowMetadataStatements: true,
+        );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Pastikan Query Read-Only
-        |--------------------------------------------------------------------------
-        */
-
-        if (!$this->isReadOnlyQuery($sql)) {
-
+        if ($validationError !== null) {
             return back()
                 ->withInput()
-                ->withErrors([
-                    'query' =>
-                        'Query ditolak. SQL Console saat ini hanya mengizinkan SELECT, SHOW, DESCRIBE, DESC, dan EXPLAIN.'
-                ]);
+                ->withErrors(['query' => $validationError]);
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Connect Database
-        |--------------------------------------------------------------------------
-        */
 
         try {
-
-            $db = $connector->connect(
-                $databaseConnection
-            );
-
-        } catch (Throwable $e) {
+            $db = $connector->connect($databaseConnection);
+        } catch (Throwable $exception) {
+            report($exception);
 
             return back()
                 ->withInput()
                 ->withErrors([
-                    'query' =>
-                        'Gagal koneksi database: ' .
-                        $e->getMessage()
+                    'query' => 'Gagal terhubung ke database monitoring. Periksa konfigurasi koneksi dan log aplikasi.',
                 ]);
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Execute Query
-        |--------------------------------------------------------------------------
-        */
 
         $startTime = microtime(true);
 
-
         try {
-
-            $rows = $db->select(
-                $sql
-            );
-
-
-            $executionTimeMs =
-                (int) round(
-                    (
-                        microtime(true)
-                        - $startTime
-                    ) * 1000
-                );
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Convert Result
-            |--------------------------------------------------------------------------
-            */
-
-            $rows = collect($rows)
-                ->map(function ($row) {
-
-                    return (array) $row;
-
-                })
+            $rows = collect($db->select($sql))
+                ->map(fn (object $row): array => (array) $row)
                 ->values();
 
-
-            /*
-            |--------------------------------------------------------------------------
-            | Ambil Column
-            |--------------------------------------------------------------------------
-            */
-
-            $columns = [];
-
-            if ($rows->count() > 0) {
-
-                $columns = array_keys(
-                    $rows->first()
-                );
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Log Activity
-            |--------------------------------------------------------------------------
-            */
+            $executionTimeMs = (int) round((microtime(true) - $startTime) * 1000);
+            $columns = $rows->isNotEmpty()
+                ? array_keys($rows->first())
+                : [];
 
             $activityLogger->success(
                 $databaseConnection,
                 $sql,
                 'SELECT',
                 null,
-                $executionTimeMs
+                $executionTimeMs,
             );
 
-
-            return view(
-                'sql-query.index',
-                [
-                    'connections' =>
-                        DatabaseConnection::query()
-                            ->where('is_active', true)
-                            ->orderBy('name')
-                            ->get(),
-
-                    'selectedConnection' =>
-                        $databaseConnection,
-
-                    'query' =>
-                        $sql,
-
-                    'rows' =>
-                        $rows,
-
-                    'columns' =>
-                        $columns,
-
-                    'executionTimeMs' =>
-                        $executionTimeMs,
-
-                    'resultCount' =>
-                        $rows->count(),
-                ]
-            );
-
-
-        } catch (Throwable $e) {
-
-            $executionTimeMs =
-                (int) round(
-                    (
-                        microtime(true)
-                        - $startTime
-                    ) * 1000
-                );
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Log Failed Query
-            |--------------------------------------------------------------------------
-            */
+            return view('sql-query.index', [
+                'connections' => $this->activeConnections(),
+                'selectedConnection' => $databaseConnection,
+                'query' => $sql,
+                'rows' => $rows,
+                'columns' => $columns,
+                'executionTimeMs' => $executionTimeMs,
+                'resultCount' => $rows->count(),
+            ]);
+        } catch (Throwable $exception) {
+            $executionTimeMs = (int) round((microtime(true) - $startTime) * 1000);
 
             $activityLogger->failed(
                 $databaseConnection,
                 $sql,
                 'SELECT',
                 null,
-                $e,
-                $executionTimeMs
+                $exception,
+                $executionTimeMs,
             );
 
+            report($exception);
 
-            return view(
-                'sql-query.index',
-                [
-                    'connections' =>
-                        DatabaseConnection::query()
-                            ->where('is_active', true)
-                            ->orderBy('name')
-                            ->get(),
-
-                    'selectedConnection' =>
-                        $databaseConnection,
-
-                    'query' =>
-                        $sql,
-
-                    'rows' =>
-                        collect(),
-
-                    'columns' =>
-                        [],
-
-                    'executionTimeMs' =>
-                        $executionTimeMs,
-
-                    'resultCount' =>
-                        0,
-
-                    'error' =>
-                        $e->getMessage(),
-                ]
-            );
+            return view('sql-query.index', [
+                'connections' => $this->activeConnections(),
+                'selectedConnection' => $databaseConnection,
+                'query' => $sql,
+                'rows' => collect(),
+                'columns' => [],
+                'executionTimeMs' => $executionTimeMs,
+                'resultCount' => 0,
+                'error' => 'Query tidak dapat dijalankan. Detail teknis telah dicatat di log aplikasi.',
+            ]);
         }
     }
 
-
-    private function isReadOnlyQuery(
-        string $sql
-    ): bool {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Remove whitespace
-        |--------------------------------------------------------------------------
-        */
-
-        $sql = trim($sql);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Remove SQL comments
-        |--------------------------------------------------------------------------
-        */
-
-        $sql = preg_replace(
-            '/--.*$/m',
-            '',
-            $sql
-        );
-
-        $sql = preg_replace(
-            '/\/\*.*?\*\//s',
-            '',
-            $sql
-        );
-
-
-        $sql = trim($sql);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Ambil keyword pertama
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            !preg_match(
-                '/^([a-zA-Z]+)/',
-                $sql,
-                $matches
-            )
-        ) {
-            return false;
-        }
-
-
-        $command = strtoupper(
-            $matches[1]
-        );
-
-
-        return in_array(
-            $command,
-            [
-                'SELECT',
-                'SHOW',
-                'DESCRIBE',
-                'DESC',
-                'EXPLAIN',
-            ],
-            true
-        );
+    private function activeConnections()
+    {
+        return DatabaseConnection::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
     }
 }

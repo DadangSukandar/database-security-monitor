@@ -6,7 +6,6 @@ use App\Models\DatabaseConnection;
 use App\Models\DatabaseUser;
 use App\Services\DatabaseConnectorService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class DatabaseUserController extends Controller
@@ -25,7 +24,6 @@ class DatabaseUserController extends Controller
                 'databaseConnection'
             );
 
-
         /*
         |--------------------------------------------------------------------------
         | Connection Filter
@@ -43,7 +41,6 @@ class DatabaseUserController extends Controller
                 $request->connection
             );
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -64,7 +61,6 @@ class DatabaseUserController extends Controller
                 )
             );
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -90,26 +86,23 @@ class DatabaseUserController extends Controller
                     'like',
                     "%{$search}%"
                 )
-                ->orWhere(
-                    'host',
-                    'like',
-                    "%{$search}%"
-                );
+                    ->orWhere(
+                        'host',
+                        'like',
+                        "%{$search}%"
+                    );
             });
         }
-
 
         $users = $query
             ->latest()
             ->paginate(20)
             ->withQueryString();
 
-
         $connections =
             DatabaseConnection::query()
                 ->orderBy('name')
                 ->get();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -138,7 +131,6 @@ class DatabaseUserController extends Controller
                 true
             )->count();
 
-
         return view(
             'database-users.index',
             compact(
@@ -151,7 +143,6 @@ class DatabaseUserController extends Controller
             )
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -170,7 +161,6 @@ class DatabaseUserController extends Controller
                     $databaseConnection
                 );
 
-
             /*
             |--------------------------------------------------------------------------
             | Hapus hasil scan lama
@@ -181,7 +171,6 @@ class DatabaseUserController extends Controller
                 'database_connection_id',
                 $databaseConnection->id
             )->delete();
-
 
             /*
             |--------------------------------------------------------------------------
@@ -200,7 +189,6 @@ class DatabaseUserController extends Controller
                 );
             }
 
-
             /*
             |--------------------------------------------------------------------------
             | PostgreSQL
@@ -216,16 +204,12 @@ class DatabaseUserController extends Controller
                     $databaseConnection,
                     $db
                 );
-            }
-
-
-            else {
+            } else {
 
                 throw new \RuntimeException(
                     'Driver tidak didukung.'
                 );
             }
-
 
             return back()->with(
                 'success',
@@ -236,13 +220,11 @@ class DatabaseUserController extends Controller
 
             return back()
                 ->withErrors([
-                    'scan' =>
-                        'Scan user gagal: ' .
-                        $e->getMessage()
+                    'scan' => 'Scan user gagal: '.
+                        $this->safeExceptionDetail($e),
                 ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -256,7 +238,7 @@ class DatabaseUserController extends Controller
     ): void {
 
         $users = $db->select(
-            "
+            '
             SELECT
                 User,
                 Host,
@@ -273,9 +255,8 @@ class DatabaseUserController extends Controller
                 Delete_priv
             FROM mysql.user
             ORDER BY User, Host
-            "
+            '
         );
-
 
         foreach (
             $users as $user
@@ -286,104 +267,79 @@ class DatabaseUserController extends Controller
                     (string) $user->Super_priv
                 ) === 'Y';
 
-
             $canCreateRole =
                 strtoupper(
                     (string) $user->Create_user_priv
                 ) === 'Y';
-
 
             $canCreateDatabase =
                 strtoupper(
                     (string) $user->Create_priv
                 ) === 'Y';
 
-
             $canGrant =
                 strtoupper(
                     (string) $user->Grant_priv
                 ) === 'Y';
-
 
             $isReplication =
                 strtoupper(
                     (string) $user->Repl_slave_priv
                 ) === 'Y';
 
-
             $isLocked =
                 strtoupper(
                     (string) $user->account_locked
                 ) === 'Y';
-
 
             $risk = $this->calculateRisk(
                 isSuper: $isSuper,
                 isLocked: $isLocked,
                 canGrant: $canGrant,
                 canCreateRole: $canCreateRole,
-                canCreateDatabase:
-                    $canCreateDatabase,
-                isReplication:
-                    $isReplication,
+                canCreateDatabase: $canCreateDatabase,
+                isReplication: $isReplication,
                 canLogin: true,
                 bypassRls: false
             );
 
-
             DatabaseUser::create([
 
-                'database_connection_id' =>
-                    $connection->id,
+                'database_connection_id' => $connection->id,
 
-                'username' =>
-                    $user->User,
+                'username' => $user->User,
 
-                'host' =>
-                    $user->Host,
+                'host' => $user->Host,
 
-                'authentication_plugin' =>
-                    $user->plugin,
+                'authentication_plugin' => $user->plugin,
 
-                'can_login' =>
-                    true,
+                'can_login' => true,
 
-                'is_superuser' =>
-                    $isSuper,
+                'is_superuser' => $isSuper,
 
-                'is_locked' =>
-                    $isLocked,
+                'is_locked' => $isLocked,
 
-                'can_create_database' =>
-                    $canCreateDatabase,
+                'can_create_database' => $canCreateDatabase,
 
-                'can_create_role' =>
-                    $canCreateRole,
+                'can_create_role' => $canCreateRole,
 
-                'can_grant' =>
-                    $canGrant,
+                'can_grant' => $canGrant,
 
-                'is_replication' =>
-                    $isReplication,
+                'is_replication' => $isReplication,
 
-                'bypass_rls' =>
-                    false,
+                'bypass_rls' => false,
 
-                'risk_level' =>
-                    $risk['level'],
+                'risk_level' => $risk['level'],
 
-                'risk_reasons' =>
-                    implode(
-                        "\n",
-                        $risk['reasons']
-                    ),
+                'risk_reasons' => implode(
+                    "\n",
+                    $risk['reasons']
+                ),
 
-                'last_scanned_at' =>
-                    now(),
+                'last_scanned_at' => now(),
             ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -397,7 +353,7 @@ class DatabaseUserController extends Controller
     ): void {
 
         $users = $db->select(
-            "
+            '
             SELECT
                 rolname,
                 rolsuper,
@@ -408,9 +364,8 @@ class DatabaseUserController extends Controller
                 rolbypassrls
             FROM pg_roles
             ORDER BY rolname
-            "
+            '
         );
-
 
         foreach (
             $users as $user
@@ -434,74 +389,54 @@ class DatabaseUserController extends Controller
             $bypassRls =
                 (bool) $user->rolbypassrls;
 
-
             $risk = $this->calculateRisk(
                 isSuper: $isSuper,
                 isLocked: false,
                 canGrant: $canCreateRole,
                 canCreateRole: $canCreateRole,
-                canCreateDatabase:
-                    $canCreateDatabase,
-                isReplication:
-                    $isReplication,
+                canCreateDatabase: $canCreateDatabase,
+                isReplication: $isReplication,
                 canLogin: $canLogin,
                 bypassRls: $bypassRls
             );
 
-
             DatabaseUser::create([
 
-                'database_connection_id' =>
-                    $connection->id,
+                'database_connection_id' => $connection->id,
 
-                'username' =>
-                    $user->rolname,
+                'username' => $user->rolname,
 
-                'host' =>
-                    null,
+                'host' => null,
 
-                'authentication_plugin' =>
-                    null,
+                'authentication_plugin' => null,
 
-                'can_login' =>
-                    $canLogin,
+                'can_login' => $canLogin,
 
-                'is_superuser' =>
-                    $isSuper,
+                'is_superuser' => $isSuper,
 
-                'is_locked' =>
-                    false,
+                'is_locked' => false,
 
-                'can_create_database' =>
-                    $canCreateDatabase,
+                'can_create_database' => $canCreateDatabase,
 
-                'can_create_role' =>
-                    $canCreateRole,
+                'can_create_role' => $canCreateRole,
 
-                'can_grant' =>
-                    $canCreateRole,
+                'can_grant' => $canCreateRole,
 
-                'is_replication' =>
-                    $isReplication,
+                'is_replication' => $isReplication,
 
-                'bypass_rls' =>
-                    $bypassRls,
+                'bypass_rls' => $bypassRls,
 
-                'risk_level' =>
-                    $risk['level'],
+                'risk_level' => $risk['level'],
 
-                'risk_reasons' =>
-                    implode(
-                        "\n",
-                        $risk['reasons']
-                    ),
+                'risk_reasons' => implode(
+                    "\n",
+                    $risk['reasons']
+                ),
 
-                'last_scanned_at' =>
-                    now(),
+                'last_scanned_at' => now(),
             ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -524,7 +459,6 @@ class DatabaseUserController extends Controller
 
         $score = 0;
 
-
         /*
         |--------------------------------------------------------------------------
         | Superuser
@@ -538,7 +472,6 @@ class DatabaseUserController extends Controller
             $reasons[] =
                 'Superuser / administrative privileges';
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -554,7 +487,6 @@ class DatabaseUserController extends Controller
                 'Can grant privileges';
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Create role
@@ -568,7 +500,6 @@ class DatabaseUserController extends Controller
             $reasons[] =
                 'Can create database roles';
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -584,7 +515,6 @@ class DatabaseUserController extends Controller
                 'Can create databases';
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Replication
@@ -599,7 +529,6 @@ class DatabaseUserController extends Controller
                 'Replication privilege';
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Bypass RLS
@@ -613,7 +542,6 @@ class DatabaseUserController extends Controller
             $reasons[] =
                 'Can bypass row level security';
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -633,7 +561,6 @@ class DatabaseUserController extends Controller
                 'Privileged account can login';
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Locked
@@ -645,7 +572,6 @@ class DatabaseUserController extends Controller
             $reasons[] =
                 'Account is locked';
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -666,13 +592,10 @@ class DatabaseUserController extends Controller
             $level = 'LOW';
         }
 
-
         return [
-            'level' =>
-                $level,
+            'level' => $level,
 
-            'reasons' =>
-                $reasons,
+            'reasons' => $reasons,
         ];
     }
 }
