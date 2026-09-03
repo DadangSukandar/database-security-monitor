@@ -572,4 +572,86 @@ class SecurityIncidentIndexFilterTest extends TestCase
         $response
             ->assertSessionHasErrors('priority');
     }
+
+    public function test_it_filters_breached_response_sla(): void
+    {
+        $user = User::factory()->create();
+
+        $breached = $this->createIncident([
+            'incident_number' => 'INC-SLA-BREACHED-0001',
+            'title' => 'Breached SLA incident',
+            'severity' => 'LOW',
+            'status' => 'OPEN',
+            'opened_at' => now()->subDays(2),
+        ]);
+
+        $onTrack = $this->createIncident([
+            'incident_number' => 'INC-SLA-TRACK-0001',
+            'title' => 'On track SLA incident',
+            'severity' => 'LOW',
+            'status' => 'OPEN',
+            'opened_at' => now()->subMinutes(5),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route(
+                'security-incidents.index',
+                ['sla' => 'BREACHED']
+            ));
+
+        $response->assertOk();
+
+        $response
+            ->assertSee($breached->incident_number)
+            ->assertDontSee($onTrack->incident_number);
+    }
+
+    public function test_it_filters_due_soon_response_sla(): void
+    {
+        $user = User::factory()->create();
+
+        $dueSoon = $this->createIncident([
+            'incident_number' => 'INC-SLA-DUE-0001',
+            'title' => 'Due soon SLA incident',
+            'severity' => 'HIGH',
+            'status' => 'OPEN',
+            'opened_at' => now()->subMinutes(50),
+        ]);
+
+        $onTrack = $this->createIncident([
+            'incident_number' => 'INC-SLA-TRACK-0002',
+            'title' => 'On track SLA incident',
+            'severity' => 'HIGH',
+            'status' => 'OPEN',
+            'opened_at' => now()->subMinutes(5),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route(
+                'security-incidents.index',
+                ['sla' => 'DUE_SOON']
+            ));
+
+        $response->assertOk();
+
+        $response
+            ->assertSee($dueSoon->incident_number)
+            ->assertDontSee($onTrack->incident_number);
+    }
+
+    public function test_it_rejects_invalid_sla_filter(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route(
+                'security-incidents.index',
+                ['sla' => 'INVALID']
+            ));
+
+        $response->assertSessionHasErrors('sla');
+    }
 }

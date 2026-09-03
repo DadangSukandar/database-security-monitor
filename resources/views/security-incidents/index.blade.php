@@ -361,6 +361,40 @@
                 </select>
             </div>
 
+            {{-- SLA --}}
+            <div class="guard-filter-field">
+                <label for="sla">
+                    Response SLA
+                </label>
+
+                <select
+                    id="sla"
+                    name="sla"
+                >
+                    <option value="">
+                        All SLA States
+                    </option>
+
+                    @foreach([
+                        'BREACHED' => 'Breached',
+                        'DUE_SOON' => 'Due Soon',
+                        'ON_TRACK' => 'On Track',
+                        'MET' => 'Met',
+                    ] as $filterSla => $filterSlaLabel)
+
+                        <option
+                            value="{{ $filterSla }}"
+                            @selected(
+                                request('sla') === $filterSla
+                            )
+                        >
+                            {{ $filterSlaLabel }}
+                        </option>
+
+                    @endforeach
+                </select>
+            </div>
+
             {{-- PIC --}}
             <div class="guard-filter-field">
                 <label for="pic">
@@ -416,6 +450,7 @@
                     request()->filled('status') ||
                     request()->filled('severity') ||
                     request()->filled('priority') ||
+                    request()->filled('sla') ||
                     request()->filled('pic')
                 )
 
@@ -684,6 +719,7 @@
                                     request()->filled('status') ||
                                     request()->filled('severity') ||
                                     request()->filled('priority') ||
+                                    request()->filled('sla') ||
                                     request()->filled('pic')
                                 )
 

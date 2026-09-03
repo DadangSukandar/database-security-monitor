@@ -423,11 +423,17 @@
                 <small>Cases requiring response</small>
             </div>
 
-            <div class="card incident-stat incident-critical">
+            <a
+                class="card incident-stat incident-critical incident-drilldown"
+                href="{{ route(
+                    'security-incidents.index',
+                    ['severity' => 'CRITICAL']
+                ) }}"
+            >
                 <span>CRITICAL</span>
                 <strong>{{ $criticalIncidents }}</strong>
                 <small>Active critical incidents</small>
-            </div>
+            </a>
 
             <div class="card incident-stat incident-high">
                 <span>HIGH</span>
@@ -435,11 +441,17 @@
                 <small>Active high incidents</small>
             </div>
 
-            <div class="card incident-stat incident-unassigned">
+            <a
+                class="card incident-stat incident-unassigned incident-drilldown"
+                href="{{ route(
+                    'security-incidents.index',
+                    ['pic' => 'unassigned']
+                ) }}"
+            >
                 <span>UNASSIGNED</span>
                 <strong>{{ $unassignedIncidents }}</strong>
                 <small>Active cases without PIC</small>
-            </div>
+            </a>
 
             <div class="card incident-stat incident-closed">
                 <span>CLOSED</span>
@@ -449,29 +461,53 @@
         </div>
 
         <div class="grid grid-4 incident-intelligence-grid">
-            <div class="card incident-intelligence-stat incident-p1">
+            <a
+                class="card incident-intelligence-stat incident-p1 incident-drilldown"
+                href="{{ route(
+                    'security-incidents.index',
+                    ['priority' => 'P1']
+                ) }}"
+            >
                 <span>P1 INCIDENTS</span>
                 <strong>{{ $p1Incidents }}</strong>
                 <small>Immediate response priority</small>
-            </div>
+            </a>
 
-            <div class="card incident-intelligence-stat incident-p2">
+            <a
+                class="card incident-intelligence-stat incident-p2 incident-drilldown"
+                href="{{ route(
+                    'security-incidents.index',
+                    ['priority' => 'P2']
+                ) }}"
+            >
                 <span>P2 INCIDENTS</span>
                 <strong>{{ $p2Incidents }}</strong>
-                <small>Elevated response priority</small>
-            </div>
+                <small>High response priority</small>
+            </a>
 
-            <div class="card incident-intelligence-stat incident-sla-breached">
+            <a
+                class="card incident-intelligence-stat incident-sla-breached incident-drilldown"
+                href="{{ route(
+                    'security-incidents.index',
+                    ['sla' => 'BREACHED']
+                ) }}"
+            >
                 <span>RESPONSE SLA BREACHED</span>
                 <strong>{{ $breachedIncidentSla }}</strong>
-                <small>Active incidents beyond response target</small>
-            </div>
+                <small>Active incidents past response target</small>
+            </a>
 
-            <div class="card incident-intelligence-stat incident-sla-due">
+            <a
+                class="card incident-intelligence-stat incident-sla-due incident-drilldown"
+                href="{{ route(
+                    'security-incidents.index',
+                    ['sla' => 'DUE_SOON']
+                ) }}"
+            >
                 <span>RESPONSE SLA DUE SOON</span>
                 <strong>{{ $dueSoonIncidentSla }}</strong>
-                <small>Incidents approaching response deadline</small>
-            </div>
+                <small>Approaching response deadline</small>
+            </a>
         </div>
 
         <div class="card table-card incident-recent-card">
@@ -1110,6 +1146,30 @@
         margin-top: 6px;
         color: #6c757d;
         font-size: 10px;
+    }
+
+    .incident-drilldown {
+        display: block;
+        color: inherit;
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+            transform .15s ease,
+            border-color .15s ease,
+            box-shadow .15s ease;
+    }
+
+    .incident-drilldown:hover {
+        color: inherit;
+        text-decoration: none;
+        transform: translateY(-2px);
+        border-color: var(--g-blue);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+    }
+
+    .incident-drilldown:focus-visible {
+        outline: 2px solid var(--g-cyan);
+        outline-offset: 2px;
     }
 
     .incident-p1,

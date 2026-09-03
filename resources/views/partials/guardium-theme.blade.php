@@ -1996,5 +1996,29 @@
         color: #fddc69 !important;
     }
 
+    .incident-drilldown {
+        display: block;
+        color: inherit;
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+            transform .15s ease,
+            border-color .15s ease,
+            box-shadow .15s ease;
+    }
+
+    .incident-drilldown:hover {
+        color: inherit;
+        text-decoration: none;
+        transform: translateY(-2px);
+        border-color: var(--g-blue);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+    }
+
+    .incident-drilldown:focus-visible {
+        outline: 2px solid var(--g-cyan);
+        outline-offset: 2px;
+    }
+
 </style>
 @endonce

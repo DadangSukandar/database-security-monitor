@@ -37,6 +37,11 @@ class SecurityIncidentController extends Controller
                 'string',
                 'in:P1,P2,P3,P4,NONE',
             ],
+            'sla' => [
+                'nullable',
+                'string',
+                'in:BREACHED,DUE_SOON,ON_TRACK,MET',
+            ],
             'pic' => [
                 'nullable',
                 'string',
@@ -48,6 +53,7 @@ class SecurityIncidentController extends Controller
         $status = $filters['status'] ?? null;
         $severity = $filters['severity'] ?? null;
         $priority = $filters['priority'] ?? null;
+        $sla = $filters['sla'] ?? null;
         $pic = $filters['pic'] ?? null;
 
         $currentTeam = $request->user()->currentTeam;
@@ -213,6 +219,23 @@ class SecurityIncidentController extends Controller
                     : null,
         ];
 
+        $slaIncidentIds = null;
+
+        if ($sla !== null) {
+            $slaIncidentIds = SecurityIncident::query()
+                ->get([
+                    'id',
+                    'severity',
+                    'status',
+                    'opened_at',
+                    'acknowledged_at',
+                ])
+                ->filter(
+                    fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === $sla
+                )
+                ->pluck('id');
+        }
+
         $incidents = SecurityIncident::query()
             ->with([
                 'securityAlert',
@@ -255,6 +278,13 @@ class SecurityIncidentController extends Controller
                 $priority !== null,
                 fn ($query) => $query->whereTriagePriority(
                     $priority
+                )
+            )
+            ->when(
+                $slaIncidentIds !== null,
+                fn ($query) => $query->whereIn(
+                    'id',
+                    $slaIncidentIds
                 )
             )
             ->when(
