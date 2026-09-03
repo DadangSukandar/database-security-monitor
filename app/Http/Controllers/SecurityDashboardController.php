@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SecurityAlert;
 use App\Models\SecurityAlertHistory;
+use App\Models\SecurityIncident;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
 use Illuminate\Support\Facades\DB;
@@ -534,6 +535,78 @@ class SecurityDashboardController extends Controller
                 ->get();
 
         /*
+        * =====================================================
+        * SECURITY INCIDENTS
+        * =====================================================
+        */
+
+        $incidentQuery = SecurityIncident::query();
+
+        $totalIncidents = (clone $incidentQuery)->count();
+
+        $closedIncidents = (clone $incidentQuery)
+            ->where('status', 'CLOSED')
+            ->count();
+
+        $activeIncidentCollection = (clone $incidentQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->get();
+
+        $activeIncidents = $activeIncidentCollection->count();
+
+        $criticalIncidents = $activeIncidentCollection
+            ->filter(
+                fn (SecurityIncident $incident): bool => strtoupper($incident->severity ?? '') === 'CRITICAL'
+            )
+            ->count();
+
+        $highIncidents = $activeIncidentCollection
+            ->filter(
+                fn (SecurityIncident $incident): bool => strtoupper($incident->severity ?? '') === 'HIGH'
+            )
+            ->count();
+
+        $unassignedIncidents = $activeIncidentCollection
+            ->filter(
+                fn (SecurityIncident $incident): bool => $incident->assigned_to_user_id === null
+            )
+            ->count();
+
+        $breachedIncidentSla = $activeIncidentCollection
+            ->filter(
+                fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'BREACHED'
+            )
+            ->count();
+
+        $dueSoonIncidentSla = $activeIncidentCollection
+            ->filter(
+                fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'DUE_SOON'
+            )
+            ->count();
+
+        $p1Incidents = $activeIncidentCollection
+            ->filter(
+                fn (SecurityIncident $incident): bool => $incident->triagePriority() === 'P1'
+            )
+            ->count();
+
+        $p2Incidents = $activeIncidentCollection
+            ->filter(
+                fn (SecurityIncident $incident): bool => $incident->triagePriority() === 'P2'
+            )
+            ->count();
+
+        $recentIncidents = (clone $incidentQuery)
+            ->with([
+                'assignedTo',
+                'securityAlert',
+            ])
+            ->latest('opened_at')
+            ->latest('id')
+            ->limit(5)
+            ->get();
+
+        /*
          * =====================================================
          * SECURITY OVERVIEW
          * =====================================================
@@ -579,6 +652,19 @@ class SecurityDashboardController extends Controller
                 'high' => $highAlerts,
 
                 'resolved' => $resolvedAlerts,
+            ],
+
+            'incidents' => [
+                'total' => $totalIncidents,
+                'active' => $activeIncidents,
+                'closed' => $closedIncidents,
+                'critical' => $criticalIncidents,
+                'high' => $highIncidents,
+                'unassigned' => $unassignedIncidents,
+                'sla_breached' => $breachedIncidentSla,
+                'sla_due_soon' => $dueSoonIncidentSla,
+                'p1' => $p1Incidents,
+                'p2' => $p2Incidents,
             ],
         ];
 
@@ -639,6 +725,21 @@ class SecurityDashboardController extends Controller
                 'dueSoonSlaAlerts',
                 'latestDatabaseAlerts',
                 'alertSeverityDistribution',
+
+                /*
+                * Incidents
+                */
+                'totalIncidents',
+                'activeIncidents',
+                'closedIncidents',
+                'criticalIncidents',
+                'highIncidents',
+                'unassignedIncidents',
+                'breachedIncidentSla',
+                'dueSoonIncidentSla',
+                'p1Incidents',
+                'p2Incidents',
+                'recentIncidents',
 
                 /*
                  * Overview

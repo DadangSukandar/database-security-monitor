@@ -378,6 +378,232 @@
         </div>
     </section>
 
+    {{-- INCIDENT OPERATIONS --}}
+    <section class="section-block">
+        <div class="section-heading">
+            <div>
+                <div class="eyebrow">INCIDENT RESPONSE</div>
+                <h2>Incident Operations</h2>
+                <p>
+                    Operational view of escalated security incidents and current response workload.
+                </p>
+            </div>
+
+            <div class="header-actions">
+                @if(Route::has('security-incidents.reports.index'))
+                    <a
+                        class="btn btn-light"
+                        href="{{ route('security-incidents.reports.index') }}"
+                    >
+                        Reporting &amp; Audit
+                    </a>
+                @endif
+
+                @if(Route::has('security-incidents.index'))
+                    <a
+                        class="btn btn-dark"
+                        href="{{ route('security-incidents.index') }}"
+                    >
+                        Incident Queue
+                    </a>
+                @endif
+            </div>
+        </div>
+
+        <div class="grid incident-summary-grid">
+            <div class="card incident-stat">
+                <span>TOTAL INCIDENTS</span>
+                <strong>{{ $totalIncidents }}</strong>
+                <small>All escalated incidents</small>
+            </div>
+
+            <div class="card incident-stat incident-active">
+                <span>ACTIVE</span>
+                <strong>{{ $activeIncidents }}</strong>
+                <small>Cases requiring response</small>
+            </div>
+
+            <div class="card incident-stat incident-critical">
+                <span>CRITICAL</span>
+                <strong>{{ $criticalIncidents }}</strong>
+                <small>Active critical incidents</small>
+            </div>
+
+            <div class="card incident-stat incident-high">
+                <span>HIGH</span>
+                <strong>{{ $highIncidents }}</strong>
+                <small>Active high incidents</small>
+            </div>
+
+            <div class="card incident-stat incident-unassigned">
+                <span>UNASSIGNED</span>
+                <strong>{{ $unassignedIncidents }}</strong>
+                <small>Active cases without PIC</small>
+            </div>
+
+            <div class="card incident-stat incident-closed">
+                <span>CLOSED</span>
+                <strong>{{ $closedIncidents }}</strong>
+                <small>Completed incident cases</small>
+            </div>
+        </div>
+
+        <div class="grid grid-4 incident-intelligence-grid">
+            <div class="card incident-intelligence-stat incident-p1">
+                <span>P1 INCIDENTS</span>
+                <strong>{{ $p1Incidents }}</strong>
+                <small>Immediate response priority</small>
+            </div>
+
+            <div class="card incident-intelligence-stat incident-p2">
+                <span>P2 INCIDENTS</span>
+                <strong>{{ $p2Incidents }}</strong>
+                <small>Elevated response priority</small>
+            </div>
+
+            <div class="card incident-intelligence-stat incident-sla-breached">
+                <span>RESPONSE SLA BREACHED</span>
+                <strong>{{ $breachedIncidentSla }}</strong>
+                <small>Active incidents beyond response target</small>
+            </div>
+
+            <div class="card incident-intelligence-stat incident-sla-due">
+                <span>RESPONSE SLA DUE SOON</span>
+                <strong>{{ $dueSoonIncidentSla }}</strong>
+                <small>Incidents approaching response deadline</small>
+            </div>
+        </div>
+
+        <div class="card table-card incident-recent-card">
+            <div class="card-heading split-heading">
+                <div>
+                    <div class="eyebrow">LATEST CASES</div>
+                    <h3>Recent Incidents</h3>
+                    <p>Most recently opened security incident cases.</p>
+                </div>
+
+                @if(Route::has('security-incidents.index'))
+                    <a
+                        class="text-link"
+                        href="{{ route('security-incidents.index') }}"
+                    >
+                        View incident queue &rarr;
+                    </a>
+                @endif
+            </div>
+
+            @if($recentIncidents->isEmpty())
+                <div class="empty-state">
+                    <strong>No Security Incidents</strong>
+                    <span>No alerts have been escalated into incident cases.</span>
+                </div>
+            @else
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>INCIDENT</th>
+                                <th>SOURCE ALERT</th>
+                                <th>SEVERITY</th>
+                                <th>STATUS</th>
+                                <th>PIC</th>
+                                <th>PRIORITY</th>
+                                <th class="right">OPENED</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach($recentIncidents as $incident)
+                                @php
+                                    $incidentSeverity = strtoupper($incident->severity ?? 'LOW');
+                                    $incidentStatus = strtoupper($incident->status ?? 'OPEN');
+                                    $incidentPriority = $incident->triagePriority();
+                                @endphp
+
+                                <tr>
+                                    <td>
+                                        @if(Route::has('security-incidents.show'))
+                                            <a
+                                                class="table-link incident-number"
+                                                href="{{ route('security-incidents.show', $incident) }}"
+                                            >
+                                                {{ $incident->incident_number }}
+                                            </a>
+                                        @else
+                                            <div class="cell-title">
+                                                {{ $incident->incident_number }}
+                                            </div>
+                                        @endif
+
+                                        <div class="cell-subtitle">
+                                            {{ $incident->title }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        @if($incident->securityAlert)
+                                            <a
+                                                class="table-link"
+                                                href="{{ route(
+                                                    'security-alerts.show',
+                                                    $incident->securityAlert
+                                                ) }}"
+                                            >
+                                                Alert #{{ $incident->securityAlert->id }}
+                                            </a>
+
+                                            <div class="cell-subtitle">
+                                                {{ $incident->securityAlert->title }}
+                                            </div>
+                                        @else
+                                            <span class="muted">
+                                                -
+                                            </span>
+                                        @endif
+                                    </td>
+
+                                    <td>
+                                        <span class="badge severity-{{ strtolower($incidentSeverity) }}">
+                                            {{ $incidentSeverity }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <span class="badge status-{{ strtolower($incidentStatus) }}">
+                                            {{ $incidentStatus }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        @if($incident->assignedTo)
+                                            <div class="cell-title">
+                                                {{ $incident->assignedTo->name }}
+                                            </div>
+                                        @else
+                                            <span class="badge incident-unassigned-badge">
+                                                UNASSIGNED
+                                            </span>
+                                        @endif
+                                    </td>
+
+                                    <td>
+                                        <span class="badge priority-{{ strtolower($incidentPriority) }}">
+                                            {{ $incidentPriority }}
+                                        </span>
+                                    </td>
+
+                                    <td class="right muted">
+                                        {{ $incident->opened_at?->format('d M Y H:i') ?? '-' }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+    </section>
+
     {{-- DATABASE + CATEGORY --}}
     <div class="grid grid-2 section-block">
         <div class="card list-card">
@@ -756,6 +982,161 @@
     .resolved-stat { background: #f0fff4; border-color: #badbcc; }
     .resolved-stat span, .resolved-stat strong { color: #0f5132; }
 
+    .incident-summary-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        margin-bottom: 18px;
+    }
+
+    .incident-stat {
+        padding: 18px;
+    }
+
+    .incident-stat span {
+        display: block;
+        color: #6c757d;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: .04em;
+    }
+
+    .incident-stat strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 28px;
+    }
+
+    .incident-stat small {
+        display: block;
+        margin-top: 6px;
+        color: #6c757d;
+        font-size: 10px;
+    }
+
+    .incident-critical {
+        background: #fff5f5;
+        border-color: #f5c2c7;
+    }
+
+    .incident-critical span,
+    .incident-critical strong {
+        color: #842029;
+    }
+
+    .incident-high,
+    .incident-unassigned {
+        background: #fff8e5;
+        border-color: #ffe69c;
+    }
+
+    .incident-high span,
+    .incident-high strong,
+    .incident-unassigned span,
+    .incident-unassigned strong {
+        color: #664d03;
+    }
+
+    .incident-closed {
+        background: #f0fff4;
+        border-color: #badbcc;
+    }
+
+    .incident-closed span,
+    .incident-closed strong {
+        color: #0f5132;
+    }
+
+    .incident-recent-card {
+        margin-top: 18px;
+    }
+
+    .incident-number {
+        font-size: 11px;
+    }
+
+    .incident-unassigned-badge {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    .priority-p1 {
+        background: #f8d7da;
+        color: #842029;
+    }
+
+    .priority-p2 {
+        background: #ffe5d0;
+        color: #984c0c;
+    }
+
+    .priority-p3 {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    .priority-p4 {
+        background: #cff4fc;
+        color: #055160;
+    }
+
+    .priority-none {
+        background: #e2e3e5;
+        color: #41464b;
+    }
+
+    .incident-intelligence-grid {
+    margin-bottom: 18px;
+}
+
+    .incident-intelligence-stat {
+        padding: 18px;
+    }
+
+    .incident-intelligence-stat span {
+        display: block;
+        color: #6c757d;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: .04em;
+    }
+
+    .incident-intelligence-stat strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 28px;
+    }
+
+    .incident-intelligence-stat small {
+        display: block;
+        margin-top: 6px;
+        color: #6c757d;
+        font-size: 10px;
+    }
+
+    .incident-p1,
+    .incident-sla-breached {
+        background: #fff5f5;
+        border-color: #f5c2c7;
+    }
+
+    .incident-p1 span,
+    .incident-p1 strong,
+    .incident-sla-breached span,
+    .incident-sla-breached strong {
+        color: #842029;
+    }
+
+    .incident-p2,
+    .incident-sla-due {
+        background: #fff8e5;
+        border-color: #ffe69c;
+    }
+
+    .incident-p2 span,
+    .incident-p2 strong,
+    .incident-sla-due span,
+    .incident-sla-due strong {
+        color: #664d03;
+    }
     .lifecycle-grid { margin: 18px 0; }
     .lifecycle-stat { padding: 18px; }
     .lifecycle-stat span { color: #6c757d; font-size: 9px; font-weight: 800; }
@@ -971,9 +1352,42 @@
         background: #25344a !important;
     }
 
+    .security-dashboard .incident-stat span,
+    .security-dashboard .incident-stat small {
+        color: var(--g-muted) !important;
+    }
+
+    .security-dashboard .incident-stat strong {
+        color: var(--g-text) !important;
+    }
+
+    .security-dashboard .incident-critical span,
+    .security-dashboard .incident-critical strong {
+        color: #ffb3b8 !important;
+    }
+
+    .security-dashboard .incident-high span,
+    .security-dashboard .incident-high strong,
+    .security-dashboard .incident-unassigned span,
+    .security-dashboard .incident-unassigned strong {
+        color: #fddc69 !important;
+    }
+
+    .security-dashboard .incident-closed span,
+    .security-dashboard .incident-closed strong {
+        color: #a7f0ba !important;
+    }
+
     @media (max-width: 1100px) {
-        .grid-4, .grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .score-layout { grid-template-columns: 1fr; }
+        .grid-4,
+        .grid-5,
+        .incident-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .score-layout {
+            grid-template-columns: 1fr;
+        }
     }
 
     @media (max-width: 850px) {
@@ -982,12 +1396,32 @@
     }
 
     @media (max-width: 620px) {
-        .security-dashboard { padding: 18px; }
-        .summary-grid { margin-bottom: 18px; }
-        .grid-4, .grid-5 { grid-template-columns: 1fr; }
-        .header-actions { width: 100%; }
-        .btn { justify-content: center; flex: 1 1 auto; }
-        .severity-row { grid-template-columns: 65px minmax(0,1fr) 30px; }
+        .security-dashboard {
+            padding: 18px;
+        }
+
+        .summary-grid {
+            margin-bottom: 18px;
+        }
+
+        .grid-4,
+        .grid-5,
+        .incident-summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .header-actions {
+            width: 100%;
+        }
+
+        .btn {
+            justify-content: center;
+            flex: 1 1 auto;
+        }
+
+        .severity-row {
+            grid-template-columns: 65px minmax(0,1fr) 30px;
+        }
     }
 </style>
 

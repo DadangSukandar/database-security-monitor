@@ -1973,5 +1973,28 @@
         }
     }
 
+    .security-dashboard .incident-intelligence-stat span,
+    .security-dashboard .incident-intelligence-stat small {
+        color: var(--g-muted) !important;
+    }
+
+    .security-dashboard .incident-intelligence-stat strong {
+        color: var(--g-text) !important;
+    }
+
+    .security-dashboard .incident-p1 span,
+    .security-dashboard .incident-p1 strong,
+    .security-dashboard .incident-sla-breached span,
+    .security-dashboard .incident-sla-breached strong {
+        color: #ffb3b8 !important;
+    }
+
+    .security-dashboard .incident-p2 span,
+    .security-dashboard .incident-p2 strong,
+    .security-dashboard .incident-sla-due span,
+    .security-dashboard .incident-sla-due strong {
+        color: #fddc69 !important;
+    }
+
 </style>
 @endonce
