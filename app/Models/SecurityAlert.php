@@ -191,6 +191,191 @@ class SecurityAlert extends Model
         return $query->whereNull('canonical_alert_id');
     }
 
+    /**
+     * @param  Builder<SecurityAlert>  $query
+     */
+    public function scopeWhereResponseSlaStatus(
+        Builder $query,
+        string $status,
+        ?CarbonInterface $at = null
+    ): Builder {
+        $status = strtoupper(trim($status));
+        $at ??= now();
+
+        if (! in_array(
+            $status,
+            ['UNKNOWN', 'MET', 'BREACHED', 'DUE_SOON', 'ON_TRACK'],
+            true
+        )) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        $startExpression = 'COALESCE(sla_started_at, detected_at)';
+
+        $slaMinutesExpression = $this->responseSlaMinutesSqlExpression();
+
+        $deadlineExpression = $this->addMinutesSqlExpression(
+            $startExpression,
+            $slaMinutesExpression
+        );
+
+        $warningMinutesExpression = $this->responseSlaWarningMinutesSqlExpression();
+
+        $warningExpression = $this->subtractMinutesSqlExpression(
+            $deadlineExpression,
+            $warningMinutesExpression
+        );
+
+        return match ($status) {
+            'UNKNOWN' => $query->whereNull('sla_started_at')
+                ->whereNull('detected_at'),
+
+            'MET' => $query
+                ->whereRaw("{$startExpression} IS NOT NULL")
+                ->whereNotNull('acknowledged_at')
+                ->whereRaw("acknowledged_at <= {$deadlineExpression}"),
+
+            'BREACHED' => $query
+                ->whereRaw("{$startExpression} IS NOT NULL")
+                ->where(function (Builder $query) use (
+                    $deadlineExpression,
+                    $at
+                ): void {
+                    $query
+                        ->where(function (Builder $query) use (
+                            $deadlineExpression
+                        ): void {
+                            $query
+                                ->whereNotNull('acknowledged_at')
+                                ->whereRaw(
+                                    "acknowledged_at > {$deadlineExpression}"
+                                );
+                        })
+                        ->orWhere(function (Builder $query): void {
+                            $query
+                                ->whereNull('acknowledged_at')
+                                ->where('status', 'RESOLVED');
+                        })
+                        ->orWhere(function (Builder $query) use (
+                            $deadlineExpression,
+                            $at
+                        ): void {
+                            $query
+                                ->whereNull('acknowledged_at')
+                                ->whereRaw(
+                                    "? > {$deadlineExpression}",
+                                    [$at]
+                                );
+                        });
+                }),
+
+            'DUE_SOON' => $query
+                ->whereRaw("{$startExpression} IS NOT NULL")
+                ->whereNull('acknowledged_at')
+                ->where('status', '!=', 'RESOLVED')
+                ->whereRaw("? <= {$deadlineExpression}", [$at])
+                ->whereRaw("? >= {$warningExpression}", [$at]),
+
+            'ON_TRACK' => $query
+                ->whereRaw("{$startExpression} IS NOT NULL")
+                ->whereNull('acknowledged_at')
+                ->where('status', '!=', 'RESOLVED')
+                ->whereRaw("? < {$warningExpression}", [$at]),
+
+            default => $query->whereRaw('1 = 0'),
+        };
+    }
+
+    private function responseSlaMinutesSqlExpression(): string
+    {
+        $critical = (int) config(
+            'security.alert_response_sla_minutes.CRITICAL',
+            15
+        );
+
+        $high = (int) config(
+            'security.alert_response_sla_minutes.HIGH',
+            60
+        );
+
+        $medium = (int) config(
+            'security.alert_response_sla_minutes.MEDIUM',
+            240
+        );
+
+        $low = (int) config(
+            'security.alert_response_sla_minutes.LOW',
+            1440
+        );
+
+        return "
+            CASE UPPER(severity)
+                WHEN 'CRITICAL' THEN {$critical}
+                WHEN 'HIGH' THEN {$high}
+                WHEN 'MEDIUM' THEN {$medium}
+                ELSE {$low}
+            END
+        ";
+    }
+
+    private function responseSlaWarningMinutesSqlExpression(): string
+    {
+        $critical = (int) ceil(
+            config('security.alert_response_sla_minutes.CRITICAL', 15) * 0.25
+        );
+
+        $high = (int) ceil(
+            config('security.alert_response_sla_minutes.HIGH', 60) * 0.25
+        );
+
+        $medium = (int) ceil(
+            config('security.alert_response_sla_minutes.MEDIUM', 240) * 0.25
+        );
+
+        $low = (int) ceil(
+            config('security.alert_response_sla_minutes.LOW', 1440) * 0.25
+        );
+
+        return "
+            CASE UPPER(severity)
+                WHEN 'CRITICAL' THEN {$critical}
+                WHEN 'HIGH' THEN {$high}
+                WHEN 'MEDIUM' THEN {$medium}
+                ELSE {$low}
+            END
+        ";
+    }
+
+    private function addMinutesSqlExpression(
+        string $dateExpression,
+        string $minutesExpression
+    ): string {
+        $driver = $this->getConnection()->getDriverName();
+
+        return match ($driver) {
+            'mysql', 'mariadb' => "DATE_ADD({$dateExpression}, INTERVAL ({$minutesExpression}) MINUTE)",
+
+            'pgsql' => "({$dateExpression} + ({$minutesExpression}) * INTERVAL '1 minute')",
+
+            default => "datetime({$dateExpression}, '+' || ({$minutesExpression}) || ' minutes')",
+        };
+    }
+
+    private function subtractMinutesSqlExpression(
+        string $dateExpression,
+        string $minutesExpression
+    ): string {
+        $driver = $this->getConnection()->getDriverName();
+
+        return match ($driver) {
+            'mysql', 'mariadb' => "DATE_SUB({$dateExpression}, INTERVAL ({$minutesExpression}) MINUTE)",
+
+            'pgsql' => "({$dateExpression} - ({$minutesExpression}) * INTERVAL '1 minute')",
+
+            default => "datetime({$dateExpression}, '-' || ({$minutesExpression}) || ' minutes')",
+        };
+    }
+
     public function canonicalAlert(): BelongsTo
     {
         return $this->belongsTo(self::class, 'canonical_alert_id');

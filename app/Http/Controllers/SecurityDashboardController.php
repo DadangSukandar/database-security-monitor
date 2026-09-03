@@ -420,31 +420,52 @@ class SecurityDashboardController extends Controller
             ? round(($resolvedAlerts / $totalAlerts) * 100, 1)
             : 0.0;
 
-        $acknowledgementDurations =
-            (clone $alertQuery)
-                ->whereNotNull('detected_at')
-                ->whereNotNull('acknowledged_at')
-                ->get(['detected_at', 'acknowledged_at'])
-                ->map(fn (SecurityAlert $alert): float => $alert->detected_at->diffInMinutes(
-                    $alert->acknowledged_at
-                ));
+        $alertDriver = SecurityAlert::query()
+            ->getModel()
+            ->getConnection()
+            ->getDriverName();
 
-        $resolutionDurations =
-            (clone $alertQuery)
-                ->whereNotNull('detected_at')
-                ->whereNotNull('resolved_at')
-                ->get(['detected_at', 'resolved_at'])
-                ->map(fn (SecurityAlert $alert): float => $alert->detected_at->diffInMinutes(
-                    $alert->resolved_at
-                ));
+        $acknowledgementDurationExpression = match ($alertDriver) {
+            'mysql', 'mariadb' => 'TIMESTAMPDIFF(SECOND, detected_at, acknowledged_at) / 60.0',
 
-        $averageAcknowledgementMinutes = $acknowledgementDurations->isNotEmpty()
-            ? round($acknowledgementDurations->average(), 1)
-            : null;
+            'pgsql' => 'EXTRACT(EPOCH FROM (acknowledged_at - detected_at)) / 60.0',
 
-        $averageResolutionMinutes = $resolutionDurations->isNotEmpty()
-            ? round($resolutionDurations->average(), 1)
-            : null;
+            default => '(julianday(acknowledged_at) - julianday(detected_at)) * 1440.0',
+        };
+
+        $resolutionDurationExpression = match ($alertDriver) {
+            'mysql', 'mariadb' => 'TIMESTAMPDIFF(SECOND, detected_at, resolved_at) / 60.0',
+
+            'pgsql' => 'EXTRACT(EPOCH FROM (resolved_at - detected_at)) / 60.0',
+
+            default => '(julianday(resolved_at) - julianday(detected_at)) * 1440.0',
+        };
+
+        $averageAcknowledgementMinutes = (clone $alertQuery)
+            ->whereNotNull('detected_at')
+            ->whereNotNull('acknowledged_at')
+            ->selectRaw(
+                "AVG({$acknowledgementDurationExpression}) as average_minutes"
+            )
+            ->value('average_minutes');
+
+        $averageAcknowledgementMinutes =
+            $averageAcknowledgementMinutes !== null
+                ? round((float) $averageAcknowledgementMinutes, 1)
+                : null;
+
+        $averageResolutionMinutes = (clone $alertQuery)
+            ->whereNotNull('detected_at')
+            ->whereNotNull('resolved_at')
+            ->selectRaw(
+                "AVG({$resolutionDurationExpression}) as average_minutes"
+            )
+            ->value('average_minutes');
+
+        $averageResolutionMinutes =
+            $averageResolutionMinutes !== null
+                ? round((float) $averageResolutionMinutes, 1)
+                : null;
 
         $recentAlertActivity = SecurityAlertHistory::query()
             ->with('alert')
@@ -453,16 +474,14 @@ class SecurityDashboardController extends Controller
             ->limit(8)
             ->get();
 
-        $activeAlertsForSla = (clone $alertQuery)
+        $breachedSlaAlerts = (clone $alertQuery)
             ->whereIn('status', ['OPEN', 'ACKNOWLEDGED', 'INVESTIGATING'])
-            ->get();
-
-        $breachedSlaAlerts = $activeAlertsForSla
-            ->filter(fn (SecurityAlert $alert): bool => $alert->responseSlaStatus() === 'BREACHED')
+            ->whereResponseSlaStatus('BREACHED')
             ->count();
 
-        $dueSoonSlaAlerts = $activeAlertsForSla
-            ->filter(fn (SecurityAlert $alert): bool => $alert->responseSlaStatus() === 'DUE_SOON')
+        $dueSoonSlaAlerts = (clone $alertQuery)
+            ->whereIn('status', ['OPEN', 'ACKNOWLEDGED', 'INVESTIGATING'])
+            ->whereResponseSlaStatus('DUE_SOON')
             ->count();
 
         /*
