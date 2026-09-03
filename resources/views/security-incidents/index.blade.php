@@ -16,9 +16,14 @@
             </p>
         </div>
 
-        <div class="guard-count">
-            {{ $incidents->total() }}
-            {{ $incidents->total() === 1 ? 'Incident' : 'Incidents' }}
+        <div class="guard-page-actions">
+            <a class="guard-btn guard-btn-secondary" href="{{ route('security-incidents.reports.index') }}">
+                Reporting & Audit
+            </a>
+            <div class="guard-count">
+                {{ $incidents->total() }}
+                {{ $incidents->total() === 1 ? 'Incident' : 'Incidents' }}
+            </div>
         </div>
     </div>
 

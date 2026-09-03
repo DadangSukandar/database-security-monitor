@@ -14,6 +14,7 @@ use App\Http\Controllers\SecurityAuditController;
 use App\Http\Controllers\SecurityDashboardController;
 use App\Http\Controllers\SecurityFindingController;
 use App\Http\Controllers\SecurityIncidentController;
+use App\Http\Controllers\SecurityIncidentReportController;
 use App\Http\Controllers\SecurityPolicyController;
 use App\Http\Controllers\SecurityReportController;
 use App\Http\Controllers\SecurityRiskController;
@@ -31,6 +32,7 @@ Route::pattern('database_connection', '[0-9]+');
 Route::pattern('discoveredDatabase', '[0-9]+');
 Route::pattern('discoveredTable', '[0-9]+');
 Route::pattern('finding', '[0-9]+');
+Route::pattern('incident', '[0-9]+');
 Route::pattern('securityFinding', '[0-9]+');
 
 Route::get(
@@ -342,6 +344,11 @@ Route::middleware(['auth', EnsureCurrentTeamMembership::class])->group(function 
                 '/',
                 [SecurityIncidentController::class, 'index']
             )->name('index');
+
+            Route::get(
+                '/reports',
+                [SecurityIncidentReportController::class, 'index']
+            )->name('reports.index');
 
             Route::get(
                 '/{incident}',

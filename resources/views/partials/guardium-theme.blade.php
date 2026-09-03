@@ -1388,7 +1388,8 @@
         min-height: 42px;
     }
 
-    .guard-filter-actions .guard-btn {
+    .guard-filter-actions .guard-btn,
+    .guard-page-header .guard-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -1408,36 +1409,42 @@
             color .15s ease;
     }
 
-    .guard-filter-actions .guard-btn-primary {
+    .guard-filter-actions .guard-btn-primary,
+    .guard-page-header .guard-btn-primary {
         border-color: var(--g-blue) !important;
         background: var(--g-blue) !important;
         color: #fff !important;
     }
 
-    .guard-filter-actions .guard-btn-primary:hover {
+    .guard-filter-actions .guard-btn-primary:hover,
+    .guard-page-header .guard-btn-primary:hover {
         border-color: var(--g-cyan) !important;
         background: #0353e9 !important;
         color: #fff !important;
     }
 
-    .guard-filter-actions .guard-btn-primary:focus {
+    .guard-filter-actions .guard-btn-primary:focus,
+    .guard-page-header .guard-btn-primary:focus {
         outline: 2px solid var(--g-cyan);
         outline-offset: 2px;
     }
 
-    .guard-filter-actions .guard-btn-secondary {
+    .guard-filter-actions .guard-btn-secondary,
+    .guard-page-header .guard-btn-secondary {
         border-color: var(--g-border) !important;
         background: var(--g-surface-raised) !important;
         color: var(--g-text) !important;
     }
 
-    .guard-filter-actions .guard-btn-secondary:hover {
+    .guard-filter-actions .guard-btn-secondary:hover,
+    .guard-page-header .guard-btn-secondary:hover {
         border-color: var(--g-cyan) !important;
         background: var(--g-surface-soft) !important;
         color: #fff !important;
     }
 
-    .guard-filter-actions .guard-btn-secondary:focus {
+    .guard-filter-actions .guard-btn-secondary:focus,
+    .guard-page-header .guard-btn-secondary:focus {
         outline: 2px solid var(--g-cyan);
         outline-offset: 2px;
     }
@@ -1890,5 +1897,81 @@
         border-color: var(--g-border);
         background: var(--g-surface-soft);
     }
+
+    .guard-page-actions,
+    .guard-filter-actions,
+    .guard-report-audit-summary {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .guard-report-range {
+        margin: 12px 0 18px;
+        color: var(--g-muted);
+        font-size: 13px;
+    }
+
+    .guard-report-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin: 16px 0;
+    }
+
+    .guard-report-panel,
+    .guard-report-section {
+        overflow: hidden;
+    }
+
+    .guard-report-section {
+        margin-top: 16px;
+    }
+
+    .guard-report-breakdown > div {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 10px 14px;
+        border-top: 1px solid var(--g-border-soft);
+    }
+
+    .guard-report-breakdown span,
+    .guard-report-audit-summary span {
+        color: var(--g-muted);
+    }
+
+    .guard-report-audit-summary {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--g-border-soft);
+    }
+
+    .guard-report-audit-summary span {
+        padding-right: 14px;
+    }
+
+    .guard-report-category {
+        display: inline-block;
+        padding: 4px 7px;
+        border: 1px solid var(--g-border);
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .04em;
+    }
+
+    .guard-report-error {
+        margin-top: 10px;
+        color: var(--g-danger);
+        font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+        .guard-report-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
 </style>
 @endonce
