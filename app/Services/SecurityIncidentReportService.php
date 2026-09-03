@@ -26,21 +26,45 @@ class SecurityIncidentReportService
                 'closed_at',
             ]);
 
+        $reportQuery = $this->incidentQuery($start, $end);
+
+        $totalIncidents = (clone $reportQuery)->count();
+
+        $activeIncidents = (clone $reportQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->count();
+
+        $closedIncidents = (clone $reportQuery)
+            ->where('status', 'CLOSED')
+            ->count();
+
+        $unassignedIncidents = (clone $reportQuery)
+            ->whereNull('assigned_to_user_id')
+            ->count();
+
+        $acknowledgedCount = (clone $reportQuery)
+            ->whereNotNull('acknowledged_at')
+            ->count();
+
+        $slaMet = (clone $reportQuery)
+            ->whereNotNull('acknowledged_at')
+            ->whereResponseSlaStatus('MET')
+            ->count();
+
+        $slaBreached = (clone $reportQuery)
+            ->whereNotNull('acknowledged_at')
+            ->whereResponseSlaStatus('BREACHED')
+            ->count();
+
         $acknowledged = $incidents->whereNotNull('acknowledged_at');
         $resolved = $incidents->whereNotNull('resolved_at');
-        $slaMet = $acknowledged->filter(
-            fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'MET'
-        )->count();
-        $slaBreached = $acknowledged->filter(
-            fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'BREACHED'
-        )->count();
 
         return [
             'summary' => [
-                'total' => $incidents->count(),
-                'active' => $incidents->where('status', '!=', 'CLOSED')->count(),
-                'closed' => $incidents->where('status', 'CLOSED')->count(),
-                'unassigned' => $incidents->whereNull('assigned_to_user_id')->count(),
+                'total' => $totalIncidents,
+                'active' => $activeIncidents,
+                'closed' => $closedIncidents,
+                'unassigned' => $unassignedIncidents,
             ],
             'status_breakdown' => $this->countBy($incidents, 'status', [
                 'OPEN',
@@ -56,19 +80,21 @@ class SecurityIncidentReportService
                 'MEDIUM',
                 'LOW',
             ]),
-            'priority_breakdown' => $this->priorityBreakdown($incidents),
+            'priority_breakdown' => $this->priorityBreakdown($start, $end),
             'assignment_breakdown' => $this->assignmentBreakdown($incidents),
             'sla' => [
-                'acknowledged' => $acknowledged->count(),
+                'acknowledged' => $acknowledgedCount,
                 'met' => $slaMet,
                 'breached' => $slaBreached,
-                'met_rate' => $acknowledged->isNotEmpty()
-                    ? round(($slaMet / $acknowledged->count()) * 100, 1)
+                'met_rate' => $acknowledgedCount > 0
+                    ? round(($slaMet / $acknowledgedCount) * 100, 1)
                     : null,
+
                 'average_acknowledgement_minutes' => $this->averageMinutes(
                     $acknowledged,
                     'acknowledged_at'
                 ),
+
                 'average_resolution_minutes' => $this->averageMinutes(
                     $resolved,
                     'resolved_at'
@@ -121,15 +147,36 @@ class SecurityIncidentReportService
      * @param  Collection<int, SecurityIncident>  $incidents
      * @return array<string, int>
      */
-    private function priorityBreakdown(Collection $incidents): array
-    {
-        $counts = array_fill_keys(['P1', 'P2', 'P3', 'P4', 'NONE'], 0);
+    /**
+     * @return array<string, int>
+     */
+    private function priorityBreakdown(
+        CarbonInterface $start,
+        CarbonInterface $end
+    ): array {
+        $query = $this->incidentQuery($start, $end);
 
-        foreach ($incidents as $incident) {
-            $counts[$incident->triagePriority()]++;
-        }
+        return [
+            'P1' => (clone $query)
+                ->whereTriagePriority('P1')
+                ->count(),
 
-        return $counts;
+            'P2' => (clone $query)
+                ->whereTriagePriority('P2')
+                ->count(),
+
+            'P3' => (clone $query)
+                ->whereTriagePriority('P3')
+                ->count(),
+
+            'P4' => (clone $query)
+                ->whereTriagePriority('P4')
+                ->count(),
+
+            'NONE' => (clone $query)
+                ->whereTriagePriority('NONE')
+                ->count(),
+        ];
     }
 
     /**
@@ -181,22 +228,27 @@ class SecurityIncidentReportService
     }
 
     /** @return list<array{date: string, opened: int, resolved: int, closed: int}> */
-    private function trends(CarbonInterface $start, CarbonInterface $end): array
-    {
-        $opened = SecurityIncident::query()
-            ->whereBetween('opened_at', [$start, $end])
-            ->get(['opened_at'])
-            ->countBy(fn (SecurityIncident $incident): string => $incident->opened_at->toDateString());
+    private function trends(
+        CarbonInterface $start,
+        CarbonInterface $end
+    ): array {
+        $opened = $this->dailyIncidentCounts(
+            'opened_at',
+            $start,
+            $end
+        );
 
-        $resolved = SecurityIncident::query()
-            ->whereBetween('resolved_at', [$start, $end])
-            ->get(['resolved_at'])
-            ->countBy(fn (SecurityIncident $incident): string => $incident->resolved_at->toDateString());
+        $resolved = $this->dailyIncidentCounts(
+            'resolved_at',
+            $start,
+            $end
+        );
 
-        $closed = SecurityIncident::query()
-            ->whereBetween('closed_at', [$start, $end])
-            ->get(['closed_at'])
-            ->countBy(fn (SecurityIncident $incident): string => $incident->closed_at->toDateString());
+        $closed = $this->dailyIncidentCounts(
+            'closed_at',
+            $start,
+            $end
+        );
 
         $rows = [];
         $cursor = $start->copy()->startOfDay();
@@ -204,36 +256,89 @@ class SecurityIncidentReportService
 
         while ($cursor->lte($lastDay)) {
             $date = $cursor->toDateString();
+
             $rows[] = [
                 'date' => $date,
                 'opened' => (int) ($opened[$date] ?? 0),
                 'resolved' => (int) ($resolved[$date] ?? 0),
                 'closed' => (int) ($closed[$date] ?? 0),
             ];
+
             $cursor->addDay();
         }
 
         return $rows;
     }
 
+    /**
+     * @return array<string, int>
+     */
+    private function dailyIncidentCounts(
+        string $column,
+        CarbonInterface $start,
+        CarbonInterface $end
+    ): array {
+        $driver = SecurityIncident::query()
+            ->getModel()
+            ->getConnection()
+            ->getDriverName();
+
+        $dateExpression = match ($driver) {
+            'mysql', 'mariadb' => "DATE({$column})",
+            'pgsql' => "TO_CHAR({$column}, 'YYYY-MM-DD')",
+            default => "DATE({$column})",
+        };
+
+        return SecurityIncident::query()
+            ->whereBetween($column, [$start, $end])
+            ->selectRaw("{$dateExpression} as event_date, COUNT(*) as aggregate")
+            ->groupByRaw($dateExpression)
+            ->pluck('aggregate', 'event_date')
+            ->map(fn ($count): int => (int) $count)
+            ->all();
+    }
+
     /** @return array<string, int> */
-    private function auditSummary(CarbonInterface $start, CarbonInterface $end): array
-    {
-        $histories = SecurityIncidentHistory::query()
+    private function auditSummary(
+        CarbonInterface $start,
+        CarbonInterface $end
+    ): array {
+        $actionCounts = SecurityIncidentHistory::query()
             ->whereBetween('created_at', [$start, $end])
-            ->get(['action']);
+            ->selectRaw('UPPER(action) as action_key, COUNT(*) as aggregate')
+            ->groupByRaw('UPPER(action)')
+            ->pluck('aggregate', 'action_key');
 
         $counts = [
-            'total' => $histories->count(),
+            'total' => 0,
             'lifecycle' => 0,
             'ownership' => 0,
             'investigation' => 0,
             'activity' => 0,
         ];
 
-        foreach ($histories as $history) {
-            $key = strtolower($history->activityCategory());
-            $counts[$key]++;
+        foreach ($actionCounts as $action => $count) {
+            $count = (int) $count;
+
+            $counts['total'] += $count;
+
+            $category = match ((string) $action) {
+                'ACKNOWLEDGE',
+                'INVESTIGATE',
+                'CONTAIN',
+                'RESOLVE',
+                'CLOSE' => 'lifecycle',
+
+                'ASSIGN',
+                'REASSIGN',
+                'UNASSIGN' => 'ownership',
+
+                'INVESTIGATION_NOTE' => 'investigation',
+
+                default => 'activity',
+            };
+
+            $counts[$category] += $count;
         }
 
         return $counts;

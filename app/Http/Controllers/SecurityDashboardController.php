@@ -548,52 +548,43 @@ class SecurityDashboardController extends Controller
             ->where('status', 'CLOSED')
             ->count();
 
-        $activeIncidentCollection = (clone $incidentQuery)
+        $activeIncidents = (clone $incidentQuery)
             ->where('status', '!=', 'CLOSED')
-            ->get();
-
-        $activeIncidents = $activeIncidentCollection->count();
-
-        $criticalIncidents = $activeIncidentCollection
-            ->filter(
-                fn (SecurityIncident $incident): bool => strtoupper($incident->severity ?? '') === 'CRITICAL'
-            )
             ->count();
 
-        $highIncidents = $activeIncidentCollection
-            ->filter(
-                fn (SecurityIncident $incident): bool => strtoupper($incident->severity ?? '') === 'HIGH'
-            )
+        $criticalIncidents = (clone $incidentQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->where('severity', 'CRITICAL')
             ->count();
 
-        $unassignedIncidents = $activeIncidentCollection
-            ->filter(
-                fn (SecurityIncident $incident): bool => $incident->assigned_to_user_id === null
-            )
+        $highIncidents = (clone $incidentQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->where('severity', 'HIGH')
             ->count();
 
-        $breachedIncidentSla = $activeIncidentCollection
-            ->filter(
-                fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'BREACHED'
-            )
+        $unassignedIncidents = (clone $incidentQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->whereNull('assigned_to_user_id')
             ->count();
 
-        $dueSoonIncidentSla = $activeIncidentCollection
-            ->filter(
-                fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'DUE_SOON'
-            )
+        $breachedIncidentSla = (clone $incidentQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->whereResponseSlaStatus('BREACHED')
             ->count();
 
-        $p1Incidents = $activeIncidentCollection
-            ->filter(
-                fn (SecurityIncident $incident): bool => $incident->triagePriority() === 'P1'
-            )
+        $dueSoonIncidentSla = (clone $incidentQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->whereResponseSlaStatus('DUE_SOON')
             ->count();
 
-        $p2Incidents = $activeIncidentCollection
-            ->filter(
-                fn (SecurityIncident $incident): bool => $incident->triagePriority() === 'P2'
-            )
+        $p1Incidents = (clone $incidentQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->whereTriagePriority('P1')
+            ->count();
+
+        $p2Incidents = (clone $incidentQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->whereTriagePriority('P2')
             ->count();
 
         $recentIncidents = (clone $incidentQuery)

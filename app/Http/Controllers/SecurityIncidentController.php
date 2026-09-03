@@ -126,27 +126,15 @@ class SecurityIncidentController extends Controller
             'oldest_active' => $oldestActiveIncident?->ageLabel(),
         ];
 
-        $activeIncidentsForSla = SecurityIncident::query()
-            ->where('status', '!=', 'CLOSED')
-            ->get([
-                'id',
-                'severity',
-                'status',
-                'opened_at',
-                'acknowledged_at',
-            ]);
-
         $incidentSlaMetrics = [
-            'breached' => $activeIncidentsForSla
-                ->filter(
-                    fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'BREACHED'
-                )
+            'breached' => SecurityIncident::query()
+                ->where('status', '!=', 'CLOSED')
+                ->whereResponseSlaStatus('BREACHED')
                 ->count(),
 
-            'due_soon' => $activeIncidentsForSla
-                ->filter(
-                    fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'DUE_SOON'
-                )
+            'due_soon' => SecurityIncident::query()
+                ->where('status', '!=', 'CLOSED')
+                ->whereResponseSlaStatus('DUE_SOON')
                 ->count(),
         ];
 
@@ -184,19 +172,22 @@ class SecurityIncidentController extends Controller
                 )
             );
 
-        $acknowledgementSlaMet = $acknowledgedIncidents
-            ->filter(
-                fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'MET'
-            )
+        $acknowledgementSlaMet = SecurityIncident::query()
+        ->whereNotNull('opened_at')
+        ->whereNotNull('acknowledged_at')
+        ->whereResponseSlaStatus('MET')
+        ->count();
+
+        $acknowledgementSlaBreached = SecurityIncident::query()
+            ->whereNotNull('opened_at')
+            ->whereNotNull('acknowledged_at')
+            ->whereResponseSlaStatus('BREACHED')
             ->count();
 
-        $acknowledgementSlaBreached = $acknowledgedIncidents
-            ->filter(
-                fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === 'BREACHED'
-            )
+        $acknowledgedCount = SecurityIncident::query()
+            ->whereNotNull('opened_at')
+            ->whereNotNull('acknowledged_at')
             ->count();
-
-        $acknowledgedCount = $acknowledgedIncidents->count();
 
         $incidentResolutionMetrics = [
             'average_acknowledgement_minutes' => $acknowledgementDurations->isNotEmpty()
@@ -218,23 +209,6 @@ class SecurityIncidentController extends Controller
                     )
                     : null,
         ];
-
-        $slaIncidentIds = null;
-
-        if ($sla !== null) {
-            $slaIncidentIds = SecurityIncident::query()
-                ->get([
-                    'id',
-                    'severity',
-                    'status',
-                    'opened_at',
-                    'acknowledged_at',
-                ])
-                ->filter(
-                    fn (SecurityIncident $incident): bool => $incident->responseSlaStatus() === $sla
-                )
-                ->pluck('id');
-        }
 
         $incidents = SecurityIncident::query()
             ->with([
@@ -281,10 +255,9 @@ class SecurityIncidentController extends Controller
                 )
             )
             ->when(
-                $slaIncidentIds !== null,
-                fn ($query) => $query->whereIn(
-                    'id',
-                    $slaIncidentIds
+                $sla !== null,
+                fn ($query) => $query->whereResponseSlaStatus(
+                    $sla
                 )
             )
             ->when(

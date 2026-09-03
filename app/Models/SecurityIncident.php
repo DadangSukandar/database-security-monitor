@@ -221,6 +221,188 @@ class SecurityIncident extends Model
         };
     }
 
+    public function scopeWhereResponseSlaStatus(
+        Builder $query,
+        string $status
+    ): Builder {
+        [$expression, $bindings] = $this->responseSlaStatusSql(
+            $query
+        );
+
+        $status = strtoupper($status);
+
+        if (
+            ! in_array(
+                $status,
+                [
+                    'BREACHED',
+                    'DUE_SOON',
+                    'ON_TRACK',
+                    'MET',
+                    'UNKNOWN',
+                ],
+                true
+            )
+        ) {
+            return $query;
+        }
+
+        return $query->whereRaw(
+            "{$expression} = ?",
+            [
+                ...$bindings,
+                $status,
+            ]
+        );
+    }
+
+    /**
+     * @return array{0: string, 1: list<mixed>}
+     */
+    private function responseSlaStatusSql(
+        Builder $query
+    ): array {
+        $slaMinutes = [
+            'CRITICAL' => (int) config(
+                'security.incident_response_sla_minutes.CRITICAL',
+                15
+            ),
+            'HIGH' => (int) config(
+                'security.incident_response_sla_minutes.HIGH',
+                60
+            ),
+            'MEDIUM' => (int) config(
+                'security.incident_response_sla_minutes.MEDIUM',
+                240
+            ),
+            'LOW' => (int) config(
+                'security.incident_response_sla_minutes.LOW',
+                1440
+            ),
+        ];
+
+        $warningStartsAfter = [
+            'CRITICAL' => $slaMinutes['CRITICAL']
+                - max(
+                    1,
+                    (int) ceil(
+                        $slaMinutes['CRITICAL'] * 0.25
+                    )
+                ),
+
+            'HIGH' => $slaMinutes['HIGH']
+                - max(
+                    1,
+                    (int) ceil(
+                        $slaMinutes['HIGH'] * 0.25
+                    )
+                ),
+
+            'MEDIUM' => $slaMinutes['MEDIUM']
+                - max(
+                    1,
+                    (int) ceil(
+                        $slaMinutes['MEDIUM'] * 0.25
+                    )
+                ),
+
+            'LOW' => $slaMinutes['LOW']
+                - max(
+                    1,
+                    (int) ceil(
+                        $slaMinutes['LOW'] * 0.25
+                    )
+                ),
+        ];
+
+        $driver = $query
+            ->getConnection()
+            ->getDriverName();
+
+        $lateAcknowledgement = $this->lateAcknowledgementSql(
+            $driver
+        );
+
+        $severity = "UPPER(COALESCE(severity, ''))";
+
+        $lowOrUnknown = "{$severity} NOT IN ".
+            "('CRITICAL', 'HIGH', 'MEDIUM')";
+
+        return [
+            <<<SQL
+            CASE
+                WHEN opened_at IS NULL
+                    THEN 'UNKNOWN'
+
+                WHEN acknowledged_at IS NOT NULL
+                    AND NOT (
+                        ({$severity} = 'CRITICAL' AND {$lateAcknowledgement})
+                        OR ({$severity} = 'HIGH' AND {$lateAcknowledgement})
+                        OR ({$severity} = 'MEDIUM' AND {$lateAcknowledgement})
+                        OR ({$lowOrUnknown} AND {$lateAcknowledgement})
+                    )
+                    THEN 'MET'
+
+                WHEN acknowledged_at IS NOT NULL
+                    THEN 'BREACHED'
+
+                WHEN UPPER(COALESCE(status, '')) = 'CLOSED'
+                    THEN 'BREACHED'
+
+                WHEN (
+                    ({$severity} = 'CRITICAL' AND opened_at < ?)
+                    OR ({$severity} = 'HIGH' AND opened_at < ?)
+                    OR ({$severity} = 'MEDIUM' AND opened_at < ?)
+                    OR ({$lowOrUnknown} AND opened_at < ?)
+                )
+                    THEN 'BREACHED'
+
+                WHEN (
+                    ({$severity} = 'CRITICAL' AND opened_at <= ?)
+                    OR ({$severity} = 'HIGH' AND opened_at <= ?)
+                    OR ({$severity} = 'MEDIUM' AND opened_at <= ?)
+                    OR ({$lowOrUnknown} AND opened_at <= ?)
+                )
+                    THEN 'DUE_SOON'
+
+                ELSE 'ON_TRACK'
+            END
+            SQL,
+            [
+                $slaMinutes['CRITICAL'],
+                $slaMinutes['HIGH'],
+                $slaMinutes['MEDIUM'],
+                $slaMinutes['LOW'],
+
+                now()->subMinutes(
+                    $slaMinutes['CRITICAL']
+                ),
+                now()->subMinutes(
+                    $slaMinutes['HIGH']
+                ),
+                now()->subMinutes(
+                    $slaMinutes['MEDIUM']
+                ),
+                now()->subMinutes(
+                    $slaMinutes['LOW']
+                ),
+
+                now()->subMinutes(
+                    $warningStartsAfter['CRITICAL']
+                ),
+                now()->subMinutes(
+                    $warningStartsAfter['HIGH']
+                ),
+                now()->subMinutes(
+                    $warningStartsAfter['MEDIUM']
+                ),
+                now()->subMinutes(
+                    $warningStartsAfter['LOW']
+                ),
+            ],
+        ];
+    }
+
     public function scopeOrderByTriagePriority(
         Builder $query
     ): Builder {
