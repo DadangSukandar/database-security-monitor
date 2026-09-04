@@ -65,6 +65,13 @@ class DatabaseActivityLogger
         ?int $executionTimeMs = null,
     ): DatabaseActivity {
         $databaseName = null;
+        $safeQuery =
+        app(
+            DatabaseActivityQuerySanitizer::class
+        )->sanitize(
+            $query,
+            $connection->driver
+        );
 
         try {
             $databaseName = app(
@@ -85,7 +92,7 @@ class DatabaseActivityLogger
             'username' => $connection->username,
             'client_ip' => request()->ip(),
             'action' => strtoupper($action),
-            'query' => $query,
+            'query' => $safeQuery,
             'status' => $status->value,
             'error_message' => $errorMessage,
             'execution_time_ms' => $executionTimeMs,
