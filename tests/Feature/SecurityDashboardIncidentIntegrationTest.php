@@ -308,61 +308,6 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
             );
     }
 
-    public function test_incident_operational_cards_link_to_filtered_queue(): void
-    {
-        $user = User::factory()->create();
-
-        $response = $this
-            ->actingAs($user)
-            ->get(route('security-dashboard'));
-
-        $response->assertOk();
-
-        $response
-            ->assertSee(
-                route(
-                    'security-incidents.index',
-                    ['priority' => 'P1']
-                ),
-                false
-            )
-            ->assertSee(
-                route(
-                    'security-incidents.index',
-                    ['priority' => 'P2']
-                ),
-                false
-            )
-            ->assertSee(
-                route(
-                    'security-incidents.index',
-                    ['sla' => 'BREACHED']
-                ),
-                false
-            )
-            ->assertSee(
-                route(
-                    'security-incidents.index',
-                    ['sla' => 'DUE_SOON']
-                ),
-                false
-            )
-            ->assertSee(
-                route(
-                    'security-incidents.index',
-                    ['pic' => 'unassigned']
-                ),
-                false
-            )
-            ->assertSee(
-                route(
-                    'security-incidents.index',
-                    ['severity' => 'CRITICAL']
-                ),
-                false
-            );
-    }
-
     public function test_security_dashboard_incident_operational_metrics_link_to_filtered_queue(): void
     {
         $user = User::factory()->create();
