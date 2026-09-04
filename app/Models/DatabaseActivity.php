@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DatabaseActivityStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -22,12 +23,11 @@ class DatabaseActivity extends Model
         'executed_at',
     ];
 
-
     protected $casts = [
+        'status' => DatabaseActivityStatus::class,
         'executed_at' => 'datetime',
         'execution_time_ms' => 'integer',
     ];
-
 
     public function databaseConnection(): BelongsTo
     {

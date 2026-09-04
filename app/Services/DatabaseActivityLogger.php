@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\DatabaseActivityStatus;
 use App\Models\DatabaseActivity;
 use App\Models\DatabaseConnection;
 use Throwable;
@@ -24,7 +25,7 @@ class DatabaseActivityLogger
             query: $query,
             action: $action,
             table: $table,
-            status: 'success',
+            status: DatabaseActivityStatus::SUCCESS,
             executionTimeMs: $executionTimeMs,
         );
     }
@@ -46,7 +47,7 @@ class DatabaseActivityLogger
             query: $query,
             action: $action,
             table: $table,
-            status: 'failed',
+            status: DatabaseActivityStatus::FAILED,
             errorMessage: $exception === null
                 ? null
                 : 'Database operation failed. Detail teknis tersedia di log aplikasi.',
@@ -59,7 +60,7 @@ class DatabaseActivityLogger
         string $query,
         string $action,
         ?string $table,
-        string $status,
+        DatabaseActivityStatus $status,
         ?string $errorMessage = null,
         ?int $executionTimeMs = null,
     ): DatabaseActivity {
@@ -85,7 +86,7 @@ class DatabaseActivityLogger
             'client_ip' => request()->ip(),
             'action' => strtoupper($action),
             'query' => $query,
-            'status' => $status,
+            'status' => $status->value,
             'error_message' => $errorMessage,
             'execution_time_ms' => $executionTimeMs,
             'executed_at' => now(),

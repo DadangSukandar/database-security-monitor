@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DatabaseActivityStatus;
 use App\Models\DatabaseActivity;
 use App\Models\DatabaseConnection;
 use Illuminate\Http\Request;
@@ -32,7 +33,6 @@ class DatabaseActivityController extends Controller
             'database_connection_id'
         );
 
-
         /*
         |--------------------------------------------------------------------------
         | Query Activities
@@ -42,7 +42,6 @@ class DatabaseActivityController extends Controller
         $query = DatabaseActivity::query()
             ->with('databaseConnection')
             ->latest('executed_at');
-
 
         /*
         |--------------------------------------------------------------------------
@@ -57,29 +56,25 @@ class DatabaseActivityController extends Controller
                 $q->where(
                     'query',
                     'like',
-                    '%' . $search . '%'
+                    '%'.$search.'%'
                 )
-
-                ->orWhere(
-                    'username',
-                    'like',
-                    '%' . $search . '%'
-                )
-
-                ->orWhere(
-                    'database_name',
-                    'like',
-                    '%' . $search . '%'
-                )
-
-                ->orWhere(
-                    'table_name',
-                    'like',
-                    '%' . $search . '%'
-                );
+                    ->orWhere(
+                        'username',
+                        'like',
+                        '%'.$search.'%'
+                    )
+                    ->orWhere(
+                        'database_name',
+                        'like',
+                        '%'.$search.'%'
+                    )
+                    ->orWhere(
+                        'table_name',
+                        'like',
+                        '%'.$search.'%'
+                    );
             });
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -95,7 +90,6 @@ class DatabaseActivityController extends Controller
             );
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Status Filter
@@ -109,7 +103,6 @@ class DatabaseActivityController extends Controller
                 $status
             );
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -125,7 +118,6 @@ class DatabaseActivityController extends Controller
             );
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Pagination
@@ -136,7 +128,6 @@ class DatabaseActivityController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-
         /*
         |--------------------------------------------------------------------------
         | Statistics
@@ -146,20 +137,17 @@ class DatabaseActivityController extends Controller
         $totalActivities =
             DatabaseActivity::count();
 
-
         $successfulActivities =
             DatabaseActivity::where(
                 'status',
-                'SUCCESS'
+                DatabaseActivityStatus::SUCCESS->value
             )->count();
-
 
         $failedActivities =
             DatabaseActivity::where(
                 'status',
-                'FAILED'
+                DatabaseActivityStatus::FAILED->value
             )->count();
-
 
         $averageExecutionTime =
             DatabaseActivity::query()
@@ -169,7 +157,6 @@ class DatabaseActivityController extends Controller
                 ->avg(
                     'execution_time_ms'
                 );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -181,7 +168,6 @@ class DatabaseActivityController extends Controller
             DatabaseConnection::query()
                 ->orderBy('name')
                 ->get();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -206,7 +192,6 @@ class DatabaseActivityController extends Controller
         );
     }
 
-
     public function show(
         DatabaseActivity $databaseActivity
     ) {
@@ -214,7 +199,6 @@ class DatabaseActivityController extends Controller
         $databaseActivity->load(
             'databaseConnection'
         );
-
 
         return view(
             'database-activities.show',
