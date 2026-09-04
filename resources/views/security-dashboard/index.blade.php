@@ -435,11 +435,18 @@
                 <small>Active critical incidents</small>
             </a>
 
-            <div class="card incident-stat incident-high">
-                <span>HIGH</span>
-                <strong>{{ $highIncidents }}</strong>
-                <small>Active high incidents</small>
-            </div>
+            <a
+            href="{{ route('security-incidents.index', [
+                'severity' => 'HIGH',
+            ]) }}"
+            class="incident-drilldown"
+            >
+                <div class="card incident-stat incident-high">
+                    <span>HIGH</span>
+                    <strong>{{ $highIncidents }}</strong>
+                    <small>Active high incidents</small>
+                </div>
+            </a>
 
             <a
                 class="card incident-stat incident-unassigned incident-drilldown"
@@ -453,11 +460,18 @@
                 <small>Active cases without PIC</small>
             </a>
 
-            <div class="card incident-stat incident-closed">
-                <span>CLOSED</span>
-                <strong>{{ $closedIncidents }}</strong>
-                <small>Completed incident cases</small>
-            </div>
+            <a
+                href="{{ route('security-incidents.index', [
+                    'status' => 'CLOSED',
+                ]) }}"
+                class="incident-drilldown"
+            >
+                <div class="card incident-stat incident-closed">
+                    <span>CLOSED</span>
+                    <strong>{{ $closedIncidents }}</strong>
+                    <small>Completed incident cases</small>
+                </div>
+            </a>
         </div>
 
         <div class="grid grid-4 incident-intelligence-grid">
@@ -1482,6 +1496,48 @@
         .severity-row {
             grid-template-columns: 65px minmax(0,1fr) 30px;
         }
+    }
+
+    .incident-drilldown {
+        display: flex;
+        min-width: 0;
+        height: 100%;
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .incident-drilldown:hover,
+    .incident-drilldown:focus {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .incident-drilldown > .incident-stat,
+    .incident-drilldown > .incident-intel-stat,
+    .incident-drilldown > div {
+        width: 100%;
+        height: auto;
+        min-height: 100%;
+        box-sizing: border-box;
+        margin: 0;
+        transition:
+            border-color 0.18s ease,
+            transform 0.18s ease,
+            box-shadow 0.18s ease;
+    }
+
+    .incident-drilldown:hover > .incident-stat,
+    .incident-drilldown:hover > .incident-intel-stat,
+    .incident-drilldown:hover > div {
+        transform: translateY(-2px);
+        border-color: #4589ff;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    }
+
+    .incident-drilldown:focus-visible {
+        outline: 2px solid #78a9ff;
+        outline-offset: 3px;
+        border-radius: 8px;
     }
 </style>
 
