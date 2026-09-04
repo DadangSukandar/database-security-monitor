@@ -159,66 +159,65 @@ class DatabasePrivilegeController extends Controller
         DatabaseConnectorService $connector
     ) {
         try {
+            return $connector->withConnection(
+                $databaseConnection,
+                function ($db) use (
+                    $databaseConnection
+                ) {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Delete previous scan
+                    |--------------------------------------------------------------------------
+                    */
 
-            $db = $connector->connect(
-                $databaseConnection
+                    DatabasePrivilege::where(
+                        'database_connection_id',
+                        $databaseConnection->id
+                    )->delete();
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | MySQL
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        $databaseConnection->driver ===
+                        'mysql'
+                    ) {
+                        $this->scanMySql(
+                            $databaseConnection,
+                            $db
+                        );
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | PostgreSQL
+                    |--------------------------------------------------------------------------
+                    */
+
+                    elseif (
+                        $databaseConnection->driver ===
+                        'pgsql'
+                    ) {
+                        $this->scanPostgreSql(
+                            $databaseConnection,
+                            $db
+                        );
+                    } else {
+                        throw new \RuntimeException(
+                            'Driver tidak didukung.'
+                        );
+                    }
+
+                    return back()->with(
+                        'success',
+                        'Database privileges berhasil di-scan.'
+                    );
+                }
             );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Delete previous scan
-            |--------------------------------------------------------------------------
-            */
-
-            DatabasePrivilege::where(
-                'database_connection_id',
-                $databaseConnection->id
-            )->delete();
-
-            /*
-            |--------------------------------------------------------------------------
-            | MySQL
-            |--------------------------------------------------------------------------
-            */
-
-            if (
-                $databaseConnection->driver === 'mysql'
-            ) {
-
-                $this->scanMySql(
-                    $databaseConnection,
-                    $db
-                );
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | PostgreSQL
-            |--------------------------------------------------------------------------
-            */
-
-            elseif (
-                $databaseConnection->driver === 'pgsql'
-            ) {
-
-                $this->scanPostgreSql(
-                    $databaseConnection,
-                    $db
-                );
-            } else {
-
-                throw new \RuntimeException(
-                    'Driver tidak didukung.'
-                );
-            }
-
-            return back()->with(
-                'success',
-                'Database privileges berhasil di-scan.'
-            );
-
         } catch (Throwable $e) {
-
             return back()->withErrors([
                 'scan' => 'Privilege scan gagal: '.
                     $this->safeExceptionDetail($e),

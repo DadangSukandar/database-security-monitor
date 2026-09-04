@@ -4,15 +4,13 @@ namespace App\Services;
 
 use App\Models\DatabaseConnection;
 use App\Models\SecurityFinding;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class SecurityAuditScanner
 {
     public function __construct(
         protected DatabaseConnectorService $connector
-    ) {
-    }
+    ) {}
 
     /**
      * Jalankan security audit terhadap database.
@@ -21,67 +19,47 @@ class SecurityAuditScanner
     {
         $db = $this->connector->connect($connection);
 
-        $result = [
-            'total' => 0,
-            'critical' => 0,
-            'high' => 0,
-            'medium' => 0,
-            'low' => 0,
-        ];
+        try {
+            $result = [
+                'total' => 0,
+                'critical' => 0,
+                'high' => 0,
+                'medium' => 0,
+                'low' => 0,
+            ];
 
-        /*
-        |--------------------------------------------------------------------------
-        | Hapus finding OPEN lama untuk connection ini
-        |--------------------------------------------------------------------------
-        */
+            SecurityFinding::where(
+                'database_connection_id',
+                $connection->id
+            )
+                ->where('status', 'OPEN')
+                ->delete();
 
-        SecurityFinding::where(
-            'database_connection_id',
-            $connection->id
-        )
-            ->where('status', 'OPEN')
-            ->delete();
+            if ($connection->driver === 'mysql') {
+                $this->scanMySql(
+                    $db,
+                    $connection,
+                    $result
+                );
+            } elseif ($connection->driver === 'pgsql') {
+                $this->scanPostgreSql(
+                    $db,
+                    $connection,
+                    $result
+                );
+            }
 
+            $result['total'] =
+                $result['critical'] +
+                $result['high'] +
+                $result['medium'] +
+                $result['low'];
 
-        /*
-        |--------------------------------------------------------------------------
-        | Scan berdasarkan driver
-        |--------------------------------------------------------------------------
-        */
-
-        if ($connection->driver === 'mysql') {
-
-            $this->scanMySql(
-                $db,
-                $connection,
-                $result
-            );
-
-        } elseif ($connection->driver === 'pgsql') {
-
-            $this->scanPostgreSql(
-                $db,
-                $connection,
-                $result
-            );
+            return $result;
+        } finally {
+            $this->connector->release($db);
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Hitung ulang total
-        |--------------------------------------------------------------------------
-        */
-
-        $result['total'] =
-            $result['critical'] +
-            $result['high'] +
-            $result['medium'] +
-            $result['low'];
-
-        return $result;
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -103,14 +81,14 @@ class SecurityAuditScanner
 
         try {
 
-            $users = $db->select("
+            $users = $db->select('
                 SELECT
                     User,
                     Host,
                     account_locked,
                     plugin
                 FROM mysql.user
-            ");
+            ');
 
             foreach ($users as $user) {
 
@@ -132,17 +110,14 @@ class SecurityAuditScanner
                         category: 'ACCESS_CONTROL',
                         severity: 'MEDIUM',
                         title: 'Database account dapat login dari host mana saja',
-                        description:
-                            "User {$username} menggunakan host '%' sehingga dapat mencoba login dari berbagai host.",
+                        description: "User {$username} menggunakan host '%' sehingga dapat mencoba login dari berbagai host.",
                         objectType: 'USER',
                         objectName: $username,
                         username: $username,
-                        recommendation:
-                            "Batasi Host user menjadi alamat atau jaringan yang memang diperlukan.",
+                        recommendation: 'Batasi Host user menjadi alamat atau jaringan yang memang diperlukan.',
                         result: $result
                     );
                 }
-
 
                 /*
                 |--------------------------------------------------------------------------
@@ -162,13 +137,11 @@ class SecurityAuditScanner
                         category: 'ACCOUNT_SECURITY',
                         severity: 'LOW',
                         title: 'Database account dalam kondisi locked',
-                        description:
-                            "User {$username} dalam kondisi locked.",
+                        description: "User {$username} dalam kondisi locked.",
                         objectType: 'USER',
                         objectName: $username,
                         username: $username,
-                        recommendation:
-                            'Hapus account yang tidak diperlukan atau pastikan status account sesuai kebutuhan.',
+                        recommendation: 'Hapus account yang tidak diperlukan atau pastikan status account sesuai kebutuhan.',
                         result: $result
                     );
                 }
@@ -180,7 +153,6 @@ class SecurityAuditScanner
              */
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | 2. Scan privileges
@@ -189,7 +161,7 @@ class SecurityAuditScanner
 
         try {
 
-            $privileges = $db->select("
+            $privileges = $db->select('
                 SELECT
                     GRANTEE,
                     TABLE_SCHEMA,
@@ -197,7 +169,7 @@ class SecurityAuditScanner
                     PRIVILEGE_TYPE,
                     IS_GRANTABLE
                 FROM information_schema.TABLE_PRIVILEGES
-            ");
+            ');
 
             foreach ($privileges as $privilege) {
 
@@ -216,7 +188,6 @@ class SecurityAuditScanner
                         (string) $privilege->IS_GRANTABLE
                     );
 
-
                 /*
                 |--------------------------------------------------------------------------
                 | GRANT OPTION
@@ -232,17 +203,14 @@ class SecurityAuditScanner
                         category: 'PRIVILEGE',
                         severity: 'HIGH',
                         title: 'User memiliki privilege yang dapat di-GRANT',
-                        description:
-                            "User {$grantee} memiliki privilege {$privilegeName} pada table {$privilege->TABLE_NAME} dan privilege tersebut dapat diberikan kepada user lain.",
+                        description: "User {$grantee} memiliki privilege {$privilegeName} pada table {$privilege->TABLE_NAME} dan privilege tersebut dapat diberikan kepada user lain.",
                         objectType: 'TABLE',
                         objectName: $privilege->TABLE_NAME,
                         username: $grantee,
-                        recommendation:
-                            'Hapus GRANT OPTION jika user tidak membutuhkan kemampuan memberikan privilege kepada user lain.',
+                        recommendation: 'Hapus GRANT OPTION jika user tidak membutuhkan kemampuan memberikan privilege kepada user lain.',
                         result: $result
                     );
                 }
-
 
                 /*
                 |--------------------------------------------------------------------------
@@ -256,7 +224,7 @@ class SecurityAuditScanner
                         [
                             'DROP',
                             'DELETE',
-                            'UPDATE'
+                            'UPDATE',
                         ],
                         true
                     )
@@ -269,13 +237,11 @@ class SecurityAuditScanner
                         category: 'PRIVILEGE',
                         severity: 'MEDIUM',
                         title: "User memiliki privilege {$privilegeName}",
-                        description:
-                            "User {$grantee} memiliki privilege {$privilegeName} terhadap table {$privilege->TABLE_NAME}.",
+                        description: "User {$grantee} memiliki privilege {$privilegeName} terhadap table {$privilege->TABLE_NAME}.",
                         objectType: 'TABLE',
                         objectName: $privilege->TABLE_NAME,
                         username: $grantee,
-                        recommendation:
-                            'Pastikan privilege write memang diperlukan oleh account tersebut.',
+                        recommendation: 'Pastikan privilege write memang diperlukan oleh account tersebut.',
                         result: $result
                     );
                 }
@@ -287,7 +253,6 @@ class SecurityAuditScanner
              */
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | 3. Scan sensitive columns
@@ -296,15 +261,15 @@ class SecurityAuditScanner
 
         try {
 
-            $columns = $db->select("
+            $columns = $db->select('
                 SELECT
                     TABLE_NAME,
                     COLUMN_NAME,
                     DATA_TYPE
                 FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = ?
-            ", [
-                $connection->database
+            ', [
+                $connection->database,
             ]);
 
             foreach ($columns as $column) {
@@ -313,7 +278,6 @@ class SecurityAuditScanner
                     strtolower(
                         (string) $column->COLUMN_NAME
                     );
-
 
                 /*
                 |--------------------------------------------------------------------------
@@ -333,20 +297,16 @@ class SecurityAuditScanner
                         category: 'PII',
                         severity: 'MEDIUM',
                         title: 'Column berpotensi mengandung alamat email',
-                        description:
-                            "Column {$column->COLUMN_NAME} pada table {$column->TABLE_NAME} terdeteksi sebagai data PII.",
+                        description: "Column {$column->COLUMN_NAME} pada table {$column->TABLE_NAME} terdeteksi sebagai data PII.",
                         objectType: 'COLUMN',
-                        objectName:
-                            $column->TABLE_NAME .
-                            '.' .
+                        objectName: $column->TABLE_NAME.
+                            '.'.
                             $column->COLUMN_NAME,
                         username: null,
-                        recommendation:
-                            'Pastikan akses terhadap data email dibatasi dan aktivitas akses dicatat.',
+                        recommendation: 'Pastikan akses terhadap data email dibatasi dan aktivitas akses dicatat.',
                         result: $result
                     );
                 }
-
 
                 /*
                 |--------------------------------------------------------------------------
@@ -367,20 +327,16 @@ class SecurityAuditScanner
                         category: 'PII',
                         severity: 'MEDIUM',
                         title: 'Column berpotensi mengandung nomor telepon',
-                        description:
-                            "Column {$column->COLUMN_NAME} pada table {$column->TABLE_NAME} terdeteksi sebagai data PII.",
+                        description: "Column {$column->COLUMN_NAME} pada table {$column->TABLE_NAME} terdeteksi sebagai data PII.",
                         objectType: 'COLUMN',
-                        objectName:
-                            $column->TABLE_NAME .
-                            '.' .
+                        objectName: $column->TABLE_NAME.
+                            '.'.
                             $column->COLUMN_NAME,
                         username: null,
-                        recommendation:
-                            'Batasi akses nomor telepon dan monitor aktivitas pembacaan data.',
+                        recommendation: 'Batasi akses nomor telepon dan monitor aktivitas pembacaan data.',
                         result: $result
                     );
                 }
-
 
                 /*
                 |--------------------------------------------------------------------------
@@ -400,16 +356,13 @@ class SecurityAuditScanner
                         category: 'CREDENTIAL',
                         severity: 'HIGH',
                         title: 'Column password terdeteksi',
-                        description:
-                            "Column {$column->COLUMN_NAME} pada table {$column->TABLE_NAME} berpotensi menyimpan credential.",
+                        description: "Column {$column->COLUMN_NAME} pada table {$column->TABLE_NAME} berpotensi menyimpan credential.",
                         objectType: 'COLUMN',
-                        objectName:
-                            $column->TABLE_NAME .
-                            '.' .
+                        objectName: $column->TABLE_NAME.
+                            '.'.
                             $column->COLUMN_NAME,
                         username: null,
-                        recommendation:
-                            'Pastikan password disimpan menggunakan hashing yang aman dan jangan menyimpan password plaintext.',
+                        recommendation: 'Pastikan password disimpan menggunakan hashing yang aman dan jangan menyimpan password plaintext.',
                         result: $result
                     );
                 }
@@ -421,7 +374,6 @@ class SecurityAuditScanner
              */
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -443,7 +395,7 @@ class SecurityAuditScanner
 
         try {
 
-            $users = $db->select("
+            $users = $db->select('
                 SELECT
                     rolname,
                     rolsuper,
@@ -451,7 +403,7 @@ class SecurityAuditScanner
                     rolcreatedb,
                     rolcanlogin
                 FROM pg_roles
-            ");
+            ');
 
             foreach ($users as $user) {
 
@@ -464,17 +416,14 @@ class SecurityAuditScanner
                         category: 'PRIVILEGE',
                         severity: 'HIGH',
                         title: 'PostgreSQL superuser terdeteksi',
-                        description:
-                            "Role {$user->rolname} memiliki SUPERUSER privilege.",
+                        description: "Role {$user->rolname} memiliki SUPERUSER privilege.",
                         objectType: 'ROLE',
                         objectName: $user->rolname,
                         username: $user->rolname,
-                        recommendation:
-                            'Hindari penggunaan SUPERUSER untuk aplikasi biasa.',
+                        recommendation: 'Hindari penggunaan SUPERUSER untuk aplikasi biasa.',
                         result: $result
                     );
                 }
-
 
                 if ($user->rolcreaterole) {
 
@@ -485,17 +434,14 @@ class SecurityAuditScanner
                         category: 'PRIVILEGE',
                         severity: 'HIGH',
                         title: 'User dapat membuat database role',
-                        description:
-                            "Role {$user->rolname} memiliki kemampuan CREATEROLE.",
+                        description: "Role {$user->rolname} memiliki kemampuan CREATEROLE.",
                         objectType: 'ROLE',
                         objectName: $user->rolname,
                         username: $user->rolname,
-                        recommendation:
-                            'Hapus CREATEROLE jika tidak diperlukan.',
+                        recommendation: 'Hapus CREATEROLE jika tidak diperlukan.',
                         result: $result
                     );
                 }
-
 
                 if ($user->rolcreatedb) {
 
@@ -506,13 +452,11 @@ class SecurityAuditScanner
                         category: 'PRIVILEGE',
                         severity: 'MEDIUM',
                         title: 'User dapat membuat database',
-                        description:
-                            "Role {$user->rolname} memiliki CREATEDB privilege.",
+                        description: "Role {$user->rolname} memiliki CREATEDB privilege.",
                         objectType: 'ROLE',
                         objectName: $user->rolname,
                         username: $user->rolname,
-                        recommendation:
-                            'Batasi CREATEDB hanya untuk administrator database.',
+                        recommendation: 'Batasi CREATEDB hanya untuk administrator database.',
                         result: $result
                     );
                 }
@@ -520,7 +464,6 @@ class SecurityAuditScanner
 
         } catch (Throwable) {
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -546,10 +489,9 @@ class SecurityAuditScanner
                 );
 
                 $object =
-                    $column->table_name .
-                    '.' .
+                    $column->table_name.
+                    '.'.
                     $column->column_name;
-
 
                 if (
                     str_contains($name, 'email') ||
@@ -564,17 +506,14 @@ class SecurityAuditScanner
                         category: 'PII',
                         severity: 'MEDIUM',
                         title: 'Potential PII column terdeteksi',
-                        description:
-                            "Column {$object} berpotensi mengandung data pribadi.",
+                        description: "Column {$object} berpotensi mengandung data pribadi.",
                         objectType: 'COLUMN',
                         objectName: $object,
                         username: null,
-                        recommendation:
-                            'Batasi akses dan monitor penggunaan data tersebut.',
+                        recommendation: 'Batasi akses dan monitor penggunaan data tersebut.',
                         result: $result
                     );
                 }
-
 
                 if (
                     str_contains($name, 'password') ||
@@ -588,13 +527,11 @@ class SecurityAuditScanner
                         category: 'CREDENTIAL',
                         severity: 'HIGH',
                         title: 'Potential password column terdeteksi',
-                        description:
-                            "Column {$object} berpotensi menyimpan credential.",
+                        description: "Column {$object} berpotensi menyimpan credential.",
                         objectType: 'COLUMN',
                         objectName: $object,
                         username: null,
-                        recommendation:
-                            'Pastikan credential tidak disimpan dalam plaintext.',
+                        recommendation: 'Pastikan credential tidak disimpan dalam plaintext.',
                         result: $result
                     );
                 }
@@ -603,7 +540,6 @@ class SecurityAuditScanner
         } catch (Throwable) {
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -627,46 +563,32 @@ class SecurityAuditScanner
     ): void {
 
         SecurityFinding::create([
-            'database_connection_id' =>
-                $connection->id,
+            'database_connection_id' => $connection->id,
 
-            'database_name' =>
-                $databaseName,
+            'database_name' => $databaseName,
 
-            'finding_type' =>
-                $findingType,
+            'finding_type' => $findingType,
 
-            'category' =>
-                $category,
+            'category' => $category,
 
-            'severity' =>
-                $severity,
+            'severity' => $severity,
 
-            'title' =>
-                $title,
+            'title' => $title,
 
-            'description' =>
-                $description,
+            'description' => $description,
 
-            'object_type' =>
-                $objectType,
+            'object_type' => $objectType,
 
-            'object_name' =>
-                $objectName,
+            'object_name' => $objectName,
 
-            'username' =>
-                $username,
+            'username' => $username,
 
-            'recommendation' =>
-                $recommendation,
+            'recommendation' => $recommendation,
 
-            'status' =>
-                'OPEN',
+            'status' => 'OPEN',
 
-            'detected_at' =>
-                now(),
+            'detected_at' => now(),
         ]);
-
 
         $key = strtolower($severity);
 

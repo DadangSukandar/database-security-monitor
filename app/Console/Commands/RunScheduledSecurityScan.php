@@ -2,13 +2,15 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\HandlesSafeConsoleExceptions;
 use App\Models\DatabaseConnection;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Artisan;
 use Throwable;
 
 class RunScheduledSecurityScan extends Command
 {
+    use HandlesSafeConsoleExceptions;
+
     /**
      * Nama command.
      */
@@ -21,7 +23,6 @@ class RunScheduledSecurityScan extends Command
      */
     protected $description =
         'Menjalankan security vulnerability assessment secara otomatis';
-
 
     /**
      * Jalankan command.
@@ -42,7 +43,6 @@ class RunScheduledSecurityScan extends Command
 
         $this->newLine();
 
-
         /*
          * =====================================================
          * AMBIL DATABASE CONNECTION
@@ -50,7 +50,6 @@ class RunScheduledSecurityScan extends Command
          */
 
         $query = DatabaseConnection::query();
-
 
         /*
          * Jika connection ID diberikan,
@@ -63,7 +62,7 @@ class RunScheduledSecurityScan extends Command
                 $this->option('connection')
             );
 
-        } elseif (!$this->option('force')) {
+        } elseif (! $this->option('force')) {
 
             /*
              * Default:
@@ -75,11 +74,9 @@ class RunScheduledSecurityScan extends Command
             );
         }
 
-
         $connections = $query
             ->orderBy('id')
             ->get();
-
 
         /*
          * Tidak ada koneksi.
@@ -93,15 +90,13 @@ class RunScheduledSecurityScan extends Command
             return self::SUCCESS;
         }
 
-
         $this->info(
-            'Ditemukan ' .
-            $connections->count() .
+            'Ditemukan '.
+            $connections->count().
             ' database connection.'
         );
 
         $this->newLine();
-
 
         /*
          * =====================================================
@@ -112,7 +107,6 @@ class RunScheduledSecurityScan extends Command
         $success = 0;
 
         $failed = 0;
-
 
         /*
          * =====================================================
@@ -127,22 +121,21 @@ class RunScheduledSecurityScan extends Command
             );
 
             $this->info(
-                'Scanning: ' .
+                'Scanning: '.
                 ($connection->name ?? 'Unnamed')
             );
 
             $this->line(
-                'ID: ' .
+                'ID: '.
                 $connection->id
             );
 
             $this->line(
-                'Driver: ' .
+                'Driver: '.
                 ($connection->driver ?? '-')
             );
 
             $this->newLine();
-
 
             try {
 
@@ -160,14 +153,11 @@ class RunScheduledSecurityScan extends Command
                 $this->call(
                     'security:scan-connection',
                     [
-                        'connection' =>
-                            $connection->id,
+                        'connection' => $connection->id,
                     ]
                 );
 
-
                 $success++;
-
 
                 $this->info(
                     '✓ Scan berhasil.'
@@ -177,17 +167,16 @@ class RunScheduledSecurityScan extends Command
 
                 $failed++;
 
+                $this->reportConsoleException($e);
 
                 $this->error(
-                    '✗ Scan gagal: ' .
-                    $e->getMessage()
+                    '✗ Scan gagal: '.
+                    $this->safeConsoleExceptionMessage()
                 );
             }
 
-
             $this->newLine();
         }
-
 
         /*
          * =====================================================
@@ -208,17 +197,16 @@ class RunScheduledSecurityScan extends Command
         );
 
         $this->line(
-            'Berhasil : ' .
+            'Berhasil : '.
             $success
         );
 
         $this->line(
-            'Gagal    : ' .
+            'Gagal    : '.
             $failed
         );
 
         $this->newLine();
-
 
         return $failed > 0
             ? self::FAILURE

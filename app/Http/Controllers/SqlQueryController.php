@@ -39,65 +39,128 @@ class SqlQueryController extends Controller
             ],
         ]);
 
-        $databaseConnection = DatabaseConnection::query()->findOrFail(
-            (int) $validated['database_connection_id']
+        $databaseConnection =
+            DatabaseConnection::query()
+                ->findOrFail(
+                    (int) $validated[
+                        'database_connection_id'
+                    ]
+                );
+
+        $sql = trim(
+            (string) $validated['query']
         );
 
-        $sql = trim((string) $validated['query']);
-        $validationError = $readOnlySqlGuard->validationError(
-            $sql,
-            allowMetadataStatements: true,
-        );
+        $validationError =
+            $readOnlySqlGuard->validationError(
+                $sql,
+                allowMetadataStatements: true,
+            );
 
         if ($validationError !== null) {
             return back()
                 ->withInput()
-                ->withErrors(['query' => $validationError]);
-        }
-
-        try {
-            $db = $connector->connect($databaseConnection);
-        } catch (Throwable $exception) {
-            report($exception);
-
-            return back()
-                ->withInput()
                 ->withErrors([
-                    'query' => 'Gagal terhubung ke database monitoring. Periksa konfigurasi koneksi dan log aplikasi.',
+                    'query' => $validationError,
                 ]);
         }
 
-        $startTime = microtime(true);
+        $connected = false;
+        $startTime = null;
 
         try {
-            $rows = collect($db->select($sql))
-                ->map(fn (object $row): array => (array) $row)
-                ->values();
-
-            $executionTimeMs = (int) round((microtime(true) - $startTime) * 1000);
-            $columns = $rows->isNotEmpty()
-                ? array_keys($rows->first())
-                : [];
-
-            $activityLogger->success(
+            return $connector->withConnection(
                 $databaseConnection,
-                $sql,
-                'SELECT',
-                null,
-                $executionTimeMs,
-            );
+                function ($db) use (
+                    $databaseConnection,
+                    $sql,
+                    $activityLogger,
+                    &$connected,
+                    &$startTime
+                ): View {
+                    /*
+                    * Callback hanya dijalankan
+                    * setelah connect berhasil.
+                    */
+                    $connected = true;
+                    $startTime = microtime(true);
 
-            return view('sql-query.index', [
-                'connections' => $this->activeConnections(),
-                'selectedConnection' => $databaseConnection,
-                'query' => $sql,
-                'rows' => $rows,
-                'columns' => $columns,
-                'executionTimeMs' => $executionTimeMs,
-                'resultCount' => $rows->count(),
-            ]);
+                    $rows =
+                        collect(
+                            $db->select($sql)
+                        )
+                            ->map(
+                                fn (object $row): array => (array) $row
+                            )
+                            ->values();
+
+                    $executionTimeMs =
+                        (int) round(
+                            (microtime(true) -
+                                $startTime) * 1000
+                        );
+
+                    $columns =
+                        $rows->isNotEmpty()
+                            ? array_keys(
+                                $rows->first()
+                            )
+                            : [];
+
+                    $activityLogger->success(
+                        $databaseConnection,
+                        $sql,
+                        'SELECT',
+                        null,
+                        $executionTimeMs,
+                    );
+
+                    return view(
+                        'sql-query.index',
+                        [
+                            'connections' => $this->activeConnections(),
+
+                            'selectedConnection' => $databaseConnection,
+
+                            'query' => $sql,
+
+                            'rows' => $rows,
+
+                            'columns' => $columns,
+
+                            'executionTimeMs' => $executionTimeMs,
+
+                            'resultCount' => $rows->count(),
+                        ]
+                    );
+                }
+            );
         } catch (Throwable $exception) {
-            $executionTimeMs = (int) round((microtime(true) - $startTime) * 1000);
+            /*
+            * Callback belum dijalankan:
+            * berarti connect() gagal.
+            */
+            if (! $connected) {
+                report($exception);
+
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'query' => 'Gagal terhubung ke database monitoring. Periksa konfigurasi koneksi dan log aplikasi.',
+                    ]);
+            }
+
+            /*
+            * Connection sudah berhasil,
+            * jadi error terjadi saat operasi query.
+            */
+            $executionTimeMs =
+                $startTime !== null
+                    ? (int) round(
+                        (microtime(true) -
+                            $startTime) * 1000
+                    )
+                    : 0;
 
             $activityLogger->failed(
                 $databaseConnection,
@@ -110,16 +173,26 @@ class SqlQueryController extends Controller
 
             report($exception);
 
-            return view('sql-query.index', [
-                'connections' => $this->activeConnections(),
-                'selectedConnection' => $databaseConnection,
-                'query' => $sql,
-                'rows' => collect(),
-                'columns' => [],
-                'executionTimeMs' => $executionTimeMs,
-                'resultCount' => 0,
-                'error' => 'Query tidak dapat dijalankan. Detail teknis telah dicatat di log aplikasi.',
-            ]);
+            return view(
+                'sql-query.index',
+                [
+                    'connections' => $this->activeConnections(),
+
+                    'selectedConnection' => $databaseConnection,
+
+                    'query' => $sql,
+
+                    'rows' => collect(),
+
+                    'columns' => [],
+
+                    'executionTimeMs' => $executionTimeMs,
+
+                    'resultCount' => 0,
+
+                    'error' => 'Query tidak dapat dijalankan. Detail teknis telah dicatat di log aplikasi.',
+                ]
+            );
         }
     }
 

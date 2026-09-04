@@ -52,45 +52,82 @@ class DatabaseQueryController extends Controller
             (int) $validated['connection_id']
         );
 
-        $sql = rtrim(trim((string) $validated['sql']), " \t\n\r\0\x0B;");
-        $validationError = $readOnlySqlGuard->validationError($sql);
+        $sql = rtrim(
+            trim((string) $validated['sql']),
+            " \t\n\r\0\x0B;"
+        );
+
+        $validationError =
+            $readOnlySqlGuard->validationError(
+                $sql
+            );
 
         if ($validationError !== null) {
             return back()
-                ->withErrors(['sql' => $validationError])
+                ->withErrors([
+                    'sql' => $validationError,
+                ])
                 ->withInput();
         }
 
         $startTime = microtime(true);
 
         try {
-            $db = $connector->connect($connection);
-            $rows = array_map(
-                fn (object $row): array => (array) $row,
-                $db->select($sql),
-            );
-
-            $executionTimeMs = (int) round((microtime(true) - $startTime) * 1000);
-            $totalRows = count($rows);
-            $displayRows = array_slice($rows, 0, 500);
-
-            $activityLogger->success(
+            return $connector->withConnection(
                 $connection,
-                $sql,
-                'QUERY',
-                null,
-                $executionTimeMs,
-            );
+                function ($db) use (
+                    $connection,
+                    $sql,
+                    $startTime,
+                    $activityLogger
+                ): View {
+                    $rows = array_map(
+                        fn (object $row): array => (array) $row,
+                        $db->select($sql),
+                    );
 
-            return view('database-query.result', compact(
-                'connection',
-                'sql',
-                'displayRows',
-                'totalRows',
-                'executionTimeMs',
-            ));
+                    $executionTimeMs =
+                        (int) round(
+                            (microtime(true) -
+                                $startTime) * 1000
+                        );
+
+                    $totalRows =
+                        count($rows);
+
+                    $displayRows =
+                        array_slice(
+                            $rows,
+                            0,
+                            500
+                        );
+
+                    $activityLogger->success(
+                        $connection,
+                        $sql,
+                        'QUERY',
+                        null,
+                        $executionTimeMs,
+                    );
+
+                    return view(
+                        'database-query.result',
+                        compact(
+                            'connection',
+                            'sql',
+                            'displayRows',
+                            'totalRows',
+                            'executionTimeMs',
+                        )
+                    );
+                }
+            );
         } catch (Throwable $exception) {
-            $executionTimeMs = (int) round((microtime(true) - $startTime) * 1000);
+            $executionTimeMs =
+                (int) round(
+                    (microtime(true) -
+                        $startTime) * 1000
+                );
 
             $activityLogger->failed(
                 $connection,

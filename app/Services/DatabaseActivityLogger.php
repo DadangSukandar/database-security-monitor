@@ -63,17 +63,22 @@ class DatabaseActivityLogger
         ?string $errorMessage = null,
         ?int $executionTimeMs = null,
     ): DatabaseActivity {
-        $db = null;
+        $databaseName = null;
 
         try {
-            $db = app(DatabaseConnectorService::class)->connect($connection);
+            $databaseName = app(
+                DatabaseConnectorService::class
+            )->withConnection(
+                $connection,
+                fn ($db) => $db->getDatabaseName()
+            );
         } catch (Throwable $exception) {
             report($exception);
         }
 
         $activity = DatabaseActivity::query()->create([
             'database_connection_id' => $connection->id,
-            'database_name' => $db?->getDatabaseName(),
+            'database_name' => $databaseName,
             'schema_name' => $this->getSchemaName($connection->driver),
             'table_name' => $table,
             'username' => $connection->username,

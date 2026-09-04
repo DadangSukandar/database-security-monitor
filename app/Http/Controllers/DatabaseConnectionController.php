@@ -53,7 +53,6 @@ class DatabaseConnectionController extends Controller
         DatabaseConnectorService $connector
     ) {
         $validated = $request->validate([
-
             'name' => [
                 'required',
                 'string',
@@ -113,31 +112,27 @@ class DatabaseConnectionController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $connection = DatabaseConnection::create(
-            $validated
-        );
+        $connection =
+            DatabaseConnection::create(
+                $validated
+            );
 
         try {
-
             /*
             |--------------------------------------------------------------------------
             | TEST CONNECTION
             |--------------------------------------------------------------------------
+            |
+            | DatabaseConnectorService akan otomatis:
+            |
+            | success -> HEALTHY + last_connected_at
+            | failure -> UNHEALTHY + failure telemetry
+            |
             */
 
             $connector->test(
                 $connection
             );
-
-            /*
-            |--------------------------------------------------------------------------
-            | UPDATE LAST CONNECTED
-            |--------------------------------------------------------------------------
-            */
-
-            $connection->update([
-                'last_connected_at' => now(),
-            ]);
 
             return redirect()
                 ->route(
@@ -148,22 +143,26 @@ class DatabaseConnectionController extends Controller
                     'success',
                     'Koneksi berhasil dibuat dan berhasil terhubung.'
                 );
-
         } catch (Throwable $e) {
-
             /*
             |--------------------------------------------------------------------------
-            | JIKA GAGAL, HAPUS CONNECTION
+            | JIKA GAGAL, HAPUS CONNECTION BARU
             |--------------------------------------------------------------------------
             */
 
             $connection->delete();
 
             return back()
-                ->withInput($request->except('password'))
+                ->withInput(
+                    $request->except(
+                        'password'
+                    )
+                )
                 ->withErrors([
                     'connection' => 'Koneksi gagal: '.
-                        $this->safeExceptionDetail($e),
+                        $this->safeExceptionDetail(
+                            $e
+                        ),
                 ]);
         }
     }
@@ -198,27 +197,30 @@ class DatabaseConnectionController extends Controller
         DatabaseConnection $databaseConnection,
         DatabaseConnectorService $connector
     ) {
-
         try {
+            /*
+            |--------------------------------------------------------------------------
+            | TEST CONNECTION
+            |--------------------------------------------------------------------------
+            |
+            | Health state dan last_connected_at dikelola oleh connector.
+            |
+            */
 
             $connector->test(
                 $databaseConnection
             );
 
-            $databaseConnection->update([
-                'last_connected_at' => now(),
-            ]);
-
             return back()->with(
                 'success',
                 'Database connection berhasil.'
             );
-
         } catch (Throwable $e) {
-
             return back()->withErrors([
                 'connection' => 'Connection failed: '.
-                    $this->safeExceptionDetail($e),
+                    $this->safeExceptionDetail(
+                        $e
+                    ),
             ]);
         }
     }
@@ -233,65 +235,59 @@ class DatabaseConnectionController extends Controller
         DatabaseConnection $databaseConnection,
         DatabaseConnectorService $connector
     ) {
-
         try {
-
-            /*
-            |--------------------------------------------------------------------------
-            | CONNECT KE DATABASE TARGET
-            |--------------------------------------------------------------------------
-            */
-
-            $db = $connector->connect(
-                $databaseConnection
-            );
-
-            /*
-            |--------------------------------------------------------------------------
-            | HAPUS HASIL SCAN LAMA
-            |--------------------------------------------------------------------------
-            |
-            | Supaya information_schema yang sebelumnya sudah tersimpan
-            | tidak muncul lagi.
-            |
-            */
-
-            $this->clearPreviousScan(
-                $databaseConnection
-            );
-
-            /*
-            |--------------------------------------------------------------------------
-            | SCAN DATABASE YANG DIPILIH
-            |--------------------------------------------------------------------------
-            */
-
-            $this->scanSelectedDatabase(
+            return $connector->withConnection(
                 $databaseConnection,
-                $db
+                function ($db) use (
+                    $databaseConnection
+                ) {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | HAPUS HASIL SCAN LAMA
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $this->clearPreviousScan(
+                        $databaseConnection
+                    );
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | SCAN DATABASE YANG DIPILIH
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $this->scanSelectedDatabase(
+                        $databaseConnection,
+                        $db
+                    );
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | UPDATE SCAN TIMESTAMP
+                    |--------------------------------------------------------------------------
+                    |
+                    | last_connected_at TIDAK ditulis di sini.
+                    | Connector sudah mencatat koneksi sukses secara terpusat.
+                    |
+                    */
+
+                    $databaseConnection->update([
+                        'last_scanned_at' => now(),
+                    ]);
+
+                    return back()->with(
+                        'success',
+                        'Database berhasil di-scan.'
+                    );
+                }
             );
-
-            /*
-            |--------------------------------------------------------------------------
-            | UPDATE STATUS CONNECTION
-            |--------------------------------------------------------------------------
-            */
-
-            $databaseConnection->update([
-                'last_scanned_at' => now(),
-                'last_connected_at' => now(),
-            ]);
-
-            return back()->with(
-                'success',
-                'Database berhasil di-scan.'
-            );
-
         } catch (Throwable $e) {
-
             return back()->withErrors([
                 'scan' => 'Scan gagal: '.
-                    $this->safeExceptionDetail($e),
+                    $this->safeExceptionDetail(
+                        $e
+                    ),
             ]);
         }
     }

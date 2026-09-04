@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\DatabaseConnectionFailureType;
+use App\Enums\DatabaseConnectionHealthStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
@@ -25,19 +27,37 @@ class DatabaseConnection extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+
         'last_connected_at' => 'datetime',
+
         'last_scanned_at' => 'datetime',
+
+        'health_status' => DatabaseConnectionHealthStatus::class,
+
+        'last_health_checked_at' => 'datetime',
+
+        'last_failed_at' => 'datetime',
+
+        'last_failure_type' => DatabaseConnectionFailureType::class,
+
+        'consecutive_failures' => 'integer',
+
+        'last_recovered_at' => 'datetime',
     ];
 
     protected $hidden = [
         'password',
     ];
 
-    public function setPasswordAttribute(?string $value): void
-    {
-        $this->attributes['password'] = $value
-            ? Crypt::encryptString($value)
-            : null;
+    public function setPasswordAttribute(
+        ?string $value
+    ): void {
+        $this->attributes['password'] =
+            $value
+                ? Crypt::encryptString(
+                    $value
+                )
+                : null;
     }
 
     public function getDecryptedPassword(): ?string
@@ -46,7 +66,9 @@ class DatabaseConnection extends Model
             return null;
         }
 
-        return Crypt::decryptString($this->password);
+        return Crypt::decryptString(
+            $this->password
+        );
     }
 
     /** @return HasMany<DiscoveredDatabase, $this> */

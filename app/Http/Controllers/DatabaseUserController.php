@@ -155,69 +155,65 @@ class DatabaseUserController extends Controller
         DatabaseConnectorService $connector
     ) {
         try {
-
-            $db =
-                $connector->connect(
+            return $connector->withConnection(
+                $databaseConnection,
+                function ($db) use (
                     $databaseConnection
-                );
+                ) {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Hapus hasil scan lama
+                    |--------------------------------------------------------------------------
+                    */
 
-            /*
-            |--------------------------------------------------------------------------
-            | Hapus hasil scan lama
-            |--------------------------------------------------------------------------
-            */
+                    DatabaseUser::where(
+                        'database_connection_id',
+                        $databaseConnection->id
+                    )->delete();
 
-            DatabaseUser::where(
-                'database_connection_id',
-                $databaseConnection->id
-            )->delete();
+                    /*
+                    |--------------------------------------------------------------------------
+                    | MySQL
+                    |--------------------------------------------------------------------------
+                    */
 
-            /*
-            |--------------------------------------------------------------------------
-            | MySQL
-            |--------------------------------------------------------------------------
-            */
+                    if (
+                        $databaseConnection->driver ===
+                        'mysql'
+                    ) {
+                        $this->scanMySql(
+                            $databaseConnection,
+                            $db
+                        );
+                    }
 
-            if (
-                $databaseConnection->driver
-                === 'mysql'
-            ) {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | PostgreSQL
+                    |--------------------------------------------------------------------------
+                    */
 
-                $this->scanMySql(
-                    $databaseConnection,
-                    $db
-                );
-            }
+                    elseif (
+                        $databaseConnection->driver ===
+                        'pgsql'
+                    ) {
+                        $this->scanPostgreSql(
+                            $databaseConnection,
+                            $db
+                        );
+                    } else {
+                        throw new \RuntimeException(
+                            'Driver tidak didukung.'
+                        );
+                    }
 
-            /*
-            |--------------------------------------------------------------------------
-            | PostgreSQL
-            |--------------------------------------------------------------------------
-            */
-
-            elseif (
-                $databaseConnection->driver
-                === 'pgsql'
-            ) {
-
-                $this->scanPostgreSql(
-                    $databaseConnection,
-                    $db
-                );
-            } else {
-
-                throw new \RuntimeException(
-                    'Driver tidak didukung.'
-                );
-            }
-
-            return back()->with(
-                'success',
-                'Database users berhasil di-scan.'
+                    return back()->with(
+                        'success',
+                        'Database users berhasil di-scan.'
+                    );
+                }
             );
-
         } catch (Throwable $e) {
-
             return back()
                 ->withErrors([
                     'scan' => 'Scan user gagal: '.

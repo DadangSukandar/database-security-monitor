@@ -11,6 +11,12 @@ use Throwable;
 
 class DatabaseExplorerController extends Controller
 {
+    /*
+    |--------------------------------------------------------------------------
+    | Show Table
+    |--------------------------------------------------------------------------
+    */
+
     public function show(
         Request $request,
         DatabaseConnection $databaseConnection,
@@ -19,302 +25,349 @@ class DatabaseExplorerController extends Controller
         DatabaseActivityLogger $activityLogger
     ) {
         try {
-
-            /*
-            |--------------------------------------------------------------------------
-            | Connect ke database target
-            |--------------------------------------------------------------------------
-            */
-
-            $db = $connector->connect(
-                $databaseConnection
-            );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Validasi table
-            |--------------------------------------------------------------------------
-            */
-
-            $tableExists = $this->tableExists(
-                $db,
-                $databaseConnection->driver,
-                $table
-            );
-
-            abort_unless(
-                $tableExists,
-                404,
-                'Table tidak ditemukan.'
-            );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Column information
-            |--------------------------------------------------------------------------
-            */
-
-            $columns = $this->getColumns(
-                $db,
-                $databaseConnection->driver,
-                $table
-            );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Sensitive Data Findings
-            |--------------------------------------------------------------------------
-            |
-            | Ambil hasil discovery dari database aplikasi Laravel.
-            |
-            */
-
-            $sensitiveColumns =
-                $this->getSensitiveColumns(
+            return $connector->withConnection(
+                $databaseConnection,
+                function ($db) use (
+                    $request,
                     $databaseConnection,
-                    $table
-                );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Tambahkan informasi sensitive ke setiap column
-            |--------------------------------------------------------------------------
-            */
-
-            foreach ($columns as &$column) {
-
-                $columnName = $column['name'];
-
-                if (
-                    isset(
-                        $sensitiveColumns[$columnName]
-                    )
+                    $table,
+                    $activityLogger
                 ) {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Validasi Table
+                    |--------------------------------------------------------------------------
+                    */
 
-                    $finding =
-                        $sensitiveColumns[$columnName];
+                    $tableExists = $this->tableExists(
+                        $db,
+                        $databaseConnection->driver,
+                        $table
+                    );
 
-                    $column['is_sensitive'] = true;
+                    abort_unless(
+                        $tableExists,
+                        404,
+                        'Table tidak ditemukan.'
+                    );
 
-                    $column['category'] =
-                        $finding->category;
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Column Information
+                    |--------------------------------------------------------------------------
+                    */
 
-                    $column['risk_level'] =
-                        $finding->risk_level;
+                    $columns = $this->getColumns(
+                        $db,
+                        $databaseConnection->driver,
+                        $table
+                    );
 
-                    $column['rule_name'] =
-                        $finding->rule_name;
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Sensitive Data Findings
+                    |--------------------------------------------------------------------------
+                    |
+                    | Ambil hasil sensitive data discovery
+                    | dari database aplikasi Laravel.
+                    |
+                    */
 
-                } else {
+                    $sensitiveColumns =
+                        $this->getSensitiveColumns(
+                            $databaseConnection,
+                            $table
+                        );
 
-                    $column['is_sensitive'] = false;
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Tambahkan Informasi Sensitive
+                    |--------------------------------------------------------------------------
+                    */
 
-                    $column['category'] = null;
+                    foreach ($columns as &$column) {
+                        $columnName =
+                            $column['name'];
 
-                    $column['risk_level'] = null;
-
-                    $column['rule_name'] = null;
-                }
-            }
-
-            unset($column);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Query
-            |--------------------------------------------------------------------------
-            */
-
-            $query = $db->table($table);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Search
-            |--------------------------------------------------------------------------
-            */
-
-            $search = $request->input(
-                'search'
-            );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Per Page
-            |--------------------------------------------------------------------------
-            */
-
-            $perPage = min(
-                max(
-                    (int) $request->input(
-                        'per_page',
-                        20
-                    ),
-                    10
-                ),
-                100
-            );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Ambil data
-            |--------------------------------------------------------------------------
-            */
-
-            $startTime = microtime(true);
-
-            try {
-
-                $rows = $query
-                    ->paginate($perPage)
-                    ->withQueryString();
-
-                $executionTimeMs = (int) round(
-                    (
-                        microtime(true)
-                        - $startTime
-                    ) * 1000
-                );
-
-                /*
-                |--------------------------------------------------------------------------
-                | Mask sensitive data
-                |--------------------------------------------------------------------------
-                */
-
-                $rows->getCollection()->transform(
-                    function ($row) use (
-                        $sensitiveColumns
-                    ) {
-
-                        $row = (array) $row;
-
-                        foreach (
-                            $sensitiveColumns as $columnName => $finding
+                        if (
+                            isset(
+                                $sensitiveColumns[
+                                    $columnName
+                                ]
+                            )
                         ) {
+                            $finding =
+                                $sensitiveColumns[
+                                    $columnName
+                                ];
 
-                            if (
-                                array_key_exists(
-                                    $columnName,
-                                    $row
-                                )
-                            ) {
+                            $column['is_sensitive'] =
+                                true;
 
-                                $row[$columnName] =
-                                    $this->maskValue(
-                                        $row[$columnName]
-                                    );
-                            }
+                            $column['category'] =
+                                $finding->category;
+
+                            $column['risk_level'] =
+                                $finding->risk_level;
+
+                            $column['rule_name'] =
+                                $finding->rule_name;
+                        } else {
+                            $column['is_sensitive'] =
+                                false;
+
+                            $column['category'] =
+                                null;
+
+                            $column['risk_level'] =
+                                null;
+
+                            $column['rule_name'] =
+                                null;
                         }
-
-                        return $row;
                     }
-                );
 
-                $activityLogger->success(
-                    $databaseConnection,
-                    'SELECT * FROM '.$table,
-                    'SELECT',
-                    $table,
-                    $executionTimeMs
-                );
+                    unset($column);
 
-            } catch (Throwable $e) {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Query
+                    |--------------------------------------------------------------------------
+                    */
 
-                $executionTimeMs = (int) round(
-                    (
-                        microtime(true)
-                        - $startTime
-                    ) * 1000
-                );
+                    $query =
+                        $db->table(
+                            $table
+                        );
 
-                $activityLogger->failed(
-                    $databaseConnection,
-                    'SELECT * FROM '.$table,
-                    'SELECT',
-                    $table,
-                    $e,
-                    $executionTimeMs
-                );
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Search
+                    |--------------------------------------------------------------------------
+                    */
 
-                throw $e;
-            }
+                    $search =
+                        $request->input(
+                            'search'
+                        );
 
-            /*
-            |--------------------------------------------------------------------------
-            | Total Rows
-            |--------------------------------------------------------------------------
-            */
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Per Page
+                    |--------------------------------------------------------------------------
+                    */
 
-            $countStart = microtime(true);
+                    $perPage =
+                        min(
+                            max(
+                                (int) $request->input(
+                                    'per_page',
+                                    20
+                                ),
+                                10
+                            ),
+                            100
+                        );
 
-            try {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Ambil Data
+                    |--------------------------------------------------------------------------
+                    */
 
-                $totalRows = $db
-                    ->table($table)
-                    ->count();
+                    $startTime =
+                        microtime(true);
 
-                $countExecutionTime = (int) round(
-                    (
-                        microtime(true)
-                        - $countStart
-                    ) * 1000
-                );
+                    try {
+                        $rows =
+                            $query
+                                ->paginate(
+                                    $perPage
+                                )
+                                ->withQueryString();
 
-                $activityLogger->success(
-                    $databaseConnection,
-                    'SELECT COUNT(*) FROM '.$table,
-                    'SELECT',
-                    $table,
-                    $countExecutionTime
-                );
+                        $executionTimeMs =
+                            (int) round(
+                                (
+                                    microtime(true)
+                                    - $startTime
+                                ) * 1000
+                            );
 
-            } catch (Throwable $e) {
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Mask Sensitive Data
+                        |--------------------------------------------------------------------------
+                        */
 
-                $countExecutionTime = (int) round(
-                    (
-                        microtime(true)
-                        - $countStart
-                    ) * 1000
-                );
+                        $rows
+                            ->getCollection()
+                            ->transform(
+                                function ($row) use (
+                                    $sensitiveColumns
+                                ) {
+                                    $row =
+                                        (array) $row;
 
-                $activityLogger->failed(
-                    $databaseConnection,
-                    'SELECT COUNT(*) FROM '.$table,
-                    'SELECT',
-                    $table,
-                    $e,
-                    $countExecutionTime
-                );
+                                    foreach (
+                                        $sensitiveColumns as $columnName => $finding
+                                    ) {
+                                        if (
+                                            array_key_exists(
+                                                $columnName,
+                                                $row
+                                            )
+                                        ) {
+                                            $row[
+                                                $columnName
+                                            ] =
+                                                $this
+                                                    ->maskValue(
+                                                        $row[
+                                                            $columnName
+                                                        ]
+                                                    );
+                                        }
+                                    }
 
-                throw $e;
-            }
+                                    return $row;
+                                }
+                            );
 
-            /*
-            |--------------------------------------------------------------------------
-            | View
-            |--------------------------------------------------------------------------
-            */
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Activity Success
+                        |--------------------------------------------------------------------------
+                        */
 
-            return view(
-                'database-explorer.show',
-                compact(
-                    'databaseConnection',
-                    'table',
-                    'columns',
-                    'rows',
-                    'totalRows',
-                    'search',
-                    'perPage',
-                    'sensitiveColumns'
-                )
+                        $activityLogger->success(
+                            $databaseConnection,
+                            'SELECT * FROM '.$table,
+                            'SELECT',
+                            $table,
+                            $executionTimeMs
+                        );
+                    } catch (Throwable $e) {
+                        $executionTimeMs =
+                            (int) round(
+                                (
+                                    microtime(true)
+                                    - $startTime
+                                ) * 1000
+                            );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Activity Failed
+                        |--------------------------------------------------------------------------
+                        */
+
+                        $activityLogger->failed(
+                            $databaseConnection,
+                            'SELECT * FROM '.$table,
+                            'SELECT',
+                            $table,
+                            $e,
+                            $executionTimeMs
+                        );
+
+                        throw $e;
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Total Rows
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $countStart =
+                        microtime(true);
+
+                    try {
+                        $totalRows =
+                            $db
+                                ->table(
+                                    $table
+                                )
+                                ->count();
+
+                        $countExecutionTime =
+                            (int) round(
+                                (
+                                    microtime(true)
+                                    - $countStart
+                                ) * 1000
+                            );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Count Activity Success
+                        |--------------------------------------------------------------------------
+                        */
+
+                        $activityLogger->success(
+                            $databaseConnection,
+                            'SELECT COUNT(*) FROM '.$table,
+                            'SELECT',
+                            $table,
+                            $countExecutionTime
+                        );
+                    } catch (Throwable $e) {
+                        $countExecutionTime =
+                            (int) round(
+                                (
+                                    microtime(true)
+                                    - $countStart
+                                ) * 1000
+                            );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Count Activity Failed
+                        |--------------------------------------------------------------------------
+                        */
+
+                        $activityLogger->failed(
+                            $databaseConnection,
+                            'SELECT COUNT(*) FROM '.$table,
+                            'SELECT',
+                            $table,
+                            $e,
+                            $countExecutionTime
+                        );
+
+                        throw $e;
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | View
+                    |--------------------------------------------------------------------------
+                    */
+
+                    return view(
+                        'database-explorer.show',
+                        compact(
+                            'databaseConnection',
+                            'table',
+                            'columns',
+                            'rows',
+                            'totalRows',
+                            'search',
+                            'perPage',
+                            'sensitiveColumns'
+                        )
+                    );
+                }
             );
-
         } catch (Throwable $e) {
-
-            return back()->withErrors([
-                'explorer' => 'Gagal membaca table: '.
-                    $this->safeExceptionDetail($e),
-            ]);
+            return back()
+                ->withErrors([
+                    'explorer' => 'Gagal membaca table: '.
+                        $this->safeExceptionDetail(
+                            $e
+                        ),
+                ]);
         }
     }
 
@@ -328,7 +381,6 @@ class DatabaseExplorerController extends Controller
         DatabaseConnection $databaseConnection,
         string $table
     ) {
-
         return DB::table(
             'sensitive_data_findings'
         )
@@ -365,7 +417,9 @@ class DatabaseExplorerController extends Controller
                 'sensitive_data_findings.rule_name',
             ])
             ->get()
-            ->keyBy('name');
+            ->keyBy(
+                'name'
+            );
     }
 
     /*
@@ -377,22 +431,25 @@ class DatabaseExplorerController extends Controller
     private function maskValue(
         mixed $value
     ): string {
-
         if ($value === null) {
             return 'NULL';
         }
 
-        $value = (string) $value;
+        $value =
+            (string) $value;
 
         if ($value === '') {
             return '';
         }
 
-        $length = mb_strlen($value);
+        $length =
+            mb_strlen(
+                $value
+            );
 
         /*
         |--------------------------------------------------------------------------
-        | Pendek
+        | Nilai Pendek
         |--------------------------------------------------------------------------
         */
 
@@ -405,47 +462,53 @@ class DatabaseExplorerController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Tampilkan sebagian kecil
+        | Tampilkan Sedikit Awal dan Akhir
         |--------------------------------------------------------------------------
         */
 
-        $visibleStart = min(
-            2,
-            $length
-        );
+        $visibleStart =
+            min(
+                2,
+                $length
+            );
 
-        $visibleEnd = min(
-            2,
-            max(
-                0,
-                $length - $visibleStart
-            )
-        );
+        $visibleEnd =
+            min(
+                2,
+                max(
+                    0,
+                    $length -
+                    $visibleStart
+                )
+            );
 
         $middleLength =
             $length
             - $visibleStart
             - $visibleEnd;
 
-        return
+        $start =
             mb_substr(
                 $value,
                 0,
                 $visibleStart
-            )
-            .
+            );
+
+        $end =
+            $visibleEnd > 0
+                ? mb_substr(
+                    $value,
+                    -$visibleEnd
+                )
+                : '';
+
+        return
+            $start.
             str_repeat(
                 '•',
-                max(
-                    3,
-                    $middleLength
-                )
-            )
-            .
-            mb_substr(
-                $value,
-                $length - $visibleEnd
-            );
+                $middleLength
+            ).
+            $end;
     }
 
     /*
@@ -459,16 +522,15 @@ class DatabaseExplorerController extends Controller
         string $driver,
         string $table
     ): bool {
-
         if (
             $driver === 'mysql'
-            ||
-            $driver === 'pgsql'
+            || $driver === 'pgsql'
         ) {
-
             return $db
                 ->getSchemaBuilder()
-                ->hasTable($table);
+                ->hasTable(
+                    $table
+                );
         }
 
         return false;
@@ -485,7 +547,6 @@ class DatabaseExplorerController extends Controller
         string $driver,
         string $table
     ): array {
-
         $schema =
             $db->getSchemaBuilder();
 
@@ -496,8 +557,13 @@ class DatabaseExplorerController extends Controller
 
         $result = [];
 
-        foreach ($columns as $column) {
+        /*
+        |--------------------------------------------------------------------------
+        | Default Column Information
+        |--------------------------------------------------------------------------
+        */
 
+        foreach ($columns as $column) {
             $result[] = [
                 'name' => $column,
 
@@ -513,42 +579,40 @@ class DatabaseExplorerController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | MySQL
+        | MySQL Column Information
         |--------------------------------------------------------------------------
         */
 
         if ($driver === 'mysql') {
-
             $database =
                 $db->getDatabaseName();
 
-            $information = $db->select(
-                '
-                SELECT
-                    COLUMN_NAME,
-                    DATA_TYPE,
-                    IS_NULLABLE,
-                    COLUMN_DEFAULT,
-                    COLUMN_KEY
-                FROM information_schema.columns
-                WHERE TABLE_SCHEMA = ?
-                AND TABLE_NAME = ?
-                ORDER BY ORDINAL_POSITION
-                ',
-                [
-                    $database,
-                    $table,
-                ]
-            );
+            $information =
+                $db->select(
+                    '
+                    SELECT
+                        COLUMN_NAME,
+                        DATA_TYPE,
+                        IS_NULLABLE,
+                        COLUMN_DEFAULT,
+                        COLUMN_KEY
+                    FROM information_schema.columns
+                    WHERE TABLE_SCHEMA = ?
+                    AND TABLE_NAME = ?
+                    ORDER BY ORDINAL_POSITION
+                    ',
+                    [
+                        $database,
+                        $table,
+                    ]
+                );
 
             $result = [];
 
             foreach (
                 $information as $column
             ) {
-
                 $result[] = [
-
                     'name' => $column->COLUMN_NAME,
 
                     'data_type' => $column->DATA_TYPE,
@@ -564,34 +628,34 @@ class DatabaseExplorerController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | PostgreSQL
+        | PostgreSQL Column Information
         |--------------------------------------------------------------------------
         */
 
         if ($driver === 'pgsql') {
-
-            $information = $db->select(
-                '
-                SELECT
-                    column_name,
-                    data_type,
-                    is_nullable,
-                    column_default
-                FROM information_schema.columns
-                WHERE table_name = ?
-                ORDER BY ordinal_position
-                ',
-                [$table]
-            );
+            $information =
+                $db->select(
+                    '
+                    SELECT
+                        column_name,
+                        data_type,
+                        is_nullable,
+                        column_default
+                    FROM information_schema.columns
+                    WHERE table_name = ?
+                    ORDER BY ordinal_position
+                    ',
+                    [
+                        $table,
+                    ]
+                );
 
             $result = [];
 
             foreach (
                 $information as $column
             ) {
-
                 $result[] = [
-
                     'name' => $column->column_name,
 
                     'data_type' => $column->data_type,

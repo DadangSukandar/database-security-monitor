@@ -3,10 +3,9 @@
 namespace App\Services;
 
 use App\Models\DatabaseConnection;
+use App\Models\DiscoveredColumn;
 use App\Models\DiscoveredDatabase;
 use App\Models\DiscoveredTable;
-use App\Models\DiscoveredColumn;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class DatabaseDiscoveryService
@@ -20,131 +19,115 @@ class DatabaseDiscoveryService
     public function scan(
         DatabaseConnection $connection
     ): array {
-
-        $db = app(
+        $connector = app(
             DatabaseConnectorService::class
-        )->connect($connection);
+        );
 
+        $db = $connector->connect(
+            $connection
+        );
 
-        $driver =
-            $connection->driver;
+        try {
+            $driver = $connection->driver;
 
+            /*
+            |--------------------------------------------------------------------------
+            | CONNECTION INFO
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | CONNECTION INFO
-        |--------------------------------------------------------------------------
-        */
+            $databaseName =
+                $db->getDatabaseName();
 
-        $databaseName =
-            $db->getDatabaseName();
+            $version =
+                $this->getVersion(
+                    $db,
+                    $driver
+                );
 
+            /*
+            |--------------------------------------------------------------------------
+            | REMOVE OLD DISCOVERY
+            |--------------------------------------------------------------------------
+            */
 
-        $version =
-            $this->getVersion(
-                $db,
-                $driver
-            );
+            DiscoveredDatabase::where(
+                'database_connection_id',
+                $connection->id
+            )->delete();
 
+            /*
+            |--------------------------------------------------------------------------
+            | CREATE DATABASE RECORD
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | REMOVE OLD DISCOVERY
-        |--------------------------------------------------------------------------
-        */
+            $discoveredDatabase =
+                DiscoveredDatabase::create([
+                    'database_connection_id' => $connection->id,
 
-        DiscoveredDatabase::where(
-            'database_connection_id',
-            $connection->id
-        )->delete();
+                    'name' => $databaseName,
 
+                    'engine' => strtoupper($driver),
 
-        /*
-        |--------------------------------------------------------------------------
-        | CREATE DATABASE RECORD
-        |--------------------------------------------------------------------------
-        */
+                    'version' => $version,
+                ]);
 
-        $discoveredDatabase =
-            DiscoveredDatabase::create([
-                'database_connection_id' =>
-                    $connection->id,
+            /*
+            |--------------------------------------------------------------------------
+            | DISCOVER TABLES
+            |--------------------------------------------------------------------------
+            */
 
-                'name' =>
-                    $databaseName,
+            if ($driver === 'mysql') {
+                $this->scanMySql(
+                    $db,
+                    $discoveredDatabase
+                );
+            } elseif ($driver === 'pgsql') {
+                $this->scanPostgres(
+                    $db,
+                    $discoveredDatabase
+                );
+            } else {
+                throw new \RuntimeException(
+                    'Driver database tidak didukung: '.
+                    $driver
+                );
+            }
 
-                'engine' =>
-                    strtoupper($driver),
+            /*
+            |--------------------------------------------------------------------------
+            | RESULT
+            |--------------------------------------------------------------------------
+            */
 
-                'version' =>
-                    $version,
-            ]);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | DISCOVER TABLES
-        |--------------------------------------------------------------------------
-        */
-
-        if ($driver === 'mysql') {
-
-            $this->scanMySql(
-                $db,
-                $discoveredDatabase
-            );
-
-        } elseif ($driver === 'pgsql') {
-
-            $this->scanPostgres(
-                $db,
-                $discoveredDatabase
-            );
-
-        } else {
-
-            throw new \RuntimeException(
-                'Driver database tidak didukung: ' .
-                $driver
-            );
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | RESULT
-        |--------------------------------------------------------------------------
-        */
-
-        $tableCount =
-            DiscoveredTable::where(
-                'discovered_database_id',
-                $discoveredDatabase->id
-            )->count();
-
-
-        $columnCount =
-            DiscoveredColumn::whereIn(
-                'discovered_table_id',
+            $tableCount =
                 DiscoveredTable::where(
                     'discovered_database_id',
                     $discoveredDatabase->id
-                )->pluck('id')
-            )->count();
+                )->count();
 
+            $columnCount =
+                DiscoveredColumn::whereIn(
+                    'discovered_table_id',
+                    DiscoveredTable::where(
+                        'discovered_database_id',
+                        $discoveredDatabase->id
+                    )->pluck('id')
+                )->count();
 
-        return [
-            'database' =>
-                $discoveredDatabase,
+            return [
+                'database' => $discoveredDatabase,
 
-            'tables' =>
-                $tableCount,
+                'tables' => $tableCount,
 
-            'columns' =>
-                $columnCount,
-        ];
+                'columns' => $columnCount,
+            ];
+        } finally {
+            $connector->release($db);
+        }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -160,9 +143,8 @@ class DatabaseDiscoveryService
         $databaseName =
             $db->getDatabaseName();
 
-
         $tables = $db->select(
-            "
+            '
             SELECT
                 TABLE_SCHEMA,
                 TABLE_NAME,
@@ -171,35 +153,28 @@ class DatabaseDiscoveryService
             FROM information_schema.TABLES
             WHERE TABLE_SCHEMA = ?
             ORDER BY TABLE_NAME
-            ",
+            ',
             [
-                $databaseName
+                $databaseName,
             ]
         );
-
 
         foreach ($tables as $tableInfo) {
 
             $table =
                 DiscoveredTable::create([
-                    'discovered_database_id' =>
-                        $database->id,
+                    'discovered_database_id' => $database->id,
 
-                    'schema_name' =>
-                        $tableInfo->TABLE_SCHEMA,
+                    'schema_name' => $tableInfo->TABLE_SCHEMA,
 
-                    'name' =>
-                        $tableInfo->TABLE_NAME,
+                    'name' => $tableInfo->TABLE_NAME,
 
-                    'type' =>
-                        $tableInfo->TABLE_TYPE,
+                    'type' => $tableInfo->TABLE_TYPE,
 
-                    'estimated_rows' =>
-                        $tableInfo->TABLE_ROWS !== null
+                    'estimated_rows' => $tableInfo->TABLE_ROWS !== null
                             ? (int) $tableInfo->TABLE_ROWS
                             : null,
                 ]);
-
 
             $columns =
                 $db->select(
@@ -240,35 +215,26 @@ class DatabaseDiscoveryService
                     ]
                 );
 
-
             foreach ($columns as $column) {
 
                 DiscoveredColumn::create([
-                    'discovered_table_id' =>
-                        $table->id,
+                    'discovered_table_id' => $table->id,
 
-                    'name' =>
-                        $column->COLUMN_NAME,
+                    'name' => $column->COLUMN_NAME,
 
-                    'data_type' =>
-                        $column->DATA_TYPE,
+                    'data_type' => $column->DATA_TYPE,
 
-                    'column_type' =>
-                        $column->COLUMN_TYPE,
+                    'column_type' => $column->COLUMN_TYPE,
 
-                    'is_nullable' =>
-                        $column->IS_NULLABLE,
+                    'is_nullable' => $column->IS_NULLABLE,
 
-                    'default_value' =>
-                        $column->COLUMN_DEFAULT,
+                    'default_value' => $column->COLUMN_DEFAULT,
 
-                    'is_primary' =>
-                        (bool) $column->IS_PRIMARY,
+                    'is_primary' => (bool) $column->IS_PRIMARY,
                 ]);
             }
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -297,7 +263,6 @@ class DatabaseDiscoveryService
             "
         );
 
-
         foreach ($tables as $tableInfo) {
 
             $estimatedRows =
@@ -307,25 +272,18 @@ class DatabaseDiscoveryService
                     $tableInfo->table_name
                 );
 
-
             $table =
                 DiscoveredTable::create([
-                    'discovered_database_id' =>
-                        $database->id,
+                    'discovered_database_id' => $database->id,
 
-                    'schema_name' =>
-                        $tableInfo->table_schema,
+                    'schema_name' => $tableInfo->table_schema,
 
-                    'name' =>
-                        $tableInfo->table_name,
+                    'name' => $tableInfo->table_name,
 
-                    'type' =>
-                        $tableInfo->table_type,
+                    'type' => $tableInfo->table_type,
 
-                    'estimated_rows' =>
-                        $estimatedRows,
+                    'estimated_rows' => $estimatedRows,
                 ]);
-
 
             $columns =
                 $db->select(
@@ -371,35 +329,26 @@ class DatabaseDiscoveryService
                     ]
                 );
 
-
             foreach ($columns as $column) {
 
                 DiscoveredColumn::create([
-                    'discovered_table_id' =>
-                        $table->id,
+                    'discovered_table_id' => $table->id,
 
-                    'name' =>
-                        $column->column_name,
+                    'name' => $column->column_name,
 
-                    'data_type' =>
-                        $column->data_type,
+                    'data_type' => $column->data_type,
 
-                    'column_type' =>
-                        $column->data_type,
+                    'column_type' => $column->data_type,
 
-                    'is_nullable' =>
-                        $column->is_nullable,
+                    'is_nullable' => $column->is_nullable,
 
-                    'default_value' =>
-                        $column->column_default,
+                    'default_value' => $column->column_default,
 
-                    'is_primary' =>
-                        (bool) $column->is_primary,
+                    'is_primary' => (bool) $column->is_primary,
                 ]);
             }
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -424,7 +373,6 @@ class DatabaseDiscoveryService
                 return $result->version ?? null;
             }
 
-
             if ($driver === 'pgsql') {
 
                 $result =
@@ -440,10 +388,8 @@ class DatabaseDiscoveryService
             return null;
         }
 
-
         return null;
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -461,7 +407,7 @@ class DatabaseDiscoveryService
 
             $result =
                 $db->selectOne(
-                    "
+                    '
                     SELECT
                         reltuples::BIGINT AS estimate
                     FROM pg_class c
@@ -469,13 +415,12 @@ class DatabaseDiscoveryService
                       ON n.oid = c.relnamespace
                     WHERE n.nspname = ?
                     AND c.relname = ?
-                    ",
+                    ',
                     [
                         $schema,
-                        $table
+                        $table,
                     ]
                 );
-
 
             if (
                 $result &&
@@ -492,7 +437,6 @@ class DatabaseDiscoveryService
 
             return null;
         }
-
 
         return null;
     }

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\HandlesSafeConsoleExceptions;
 use App\Models\SecurityAlert;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
@@ -13,6 +14,8 @@ use Throwable;
 
 class GenerateSecurityAlerts extends Command
 {
+    use HandlesSafeConsoleExceptions;
+
     /**
      * =========================================================
      * COMMAND
@@ -38,8 +41,7 @@ class GenerateSecurityAlerts extends Command
     public function handle(
         SecurityAlertFingerprintService $fingerprints,
         SecurityAlertLifecycleService $lifecycle
-    ): int
-    {
+    ): int {
         $this->newLine();
 
         $this->line(
@@ -363,14 +365,15 @@ class GenerateSecurityAlerts extends Command
                 );
 
             } catch (Throwable $e) {
-
                 $failed++;
+
+                $this->reportConsoleException($e);
 
                 $this->error(
                     '[FAILED] Finding #'.
                     $finding->id.
                     ' - '.
-                    $e->getMessage()
+                    $this->safeConsoleExceptionMessage()
                 );
             }
         }

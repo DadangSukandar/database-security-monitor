@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\HandlesSafeConsoleExceptions;
 use App\Models\DatabaseConnection;
 use App\Models\VulnerabilityAssessment;
 use Illuminate\Console\Command;
@@ -9,6 +10,8 @@ use Throwable;
 
 class SecurityAutoScan extends Command
 {
+    use HandlesSafeConsoleExceptions;
+
     /**
      * Command:
      *
@@ -23,7 +26,6 @@ class SecurityAutoScan extends Command
 
     protected $description =
         'Menjalankan vulnerability scan otomatis dan membuat security alert';
-
 
     /**
      * =========================================================
@@ -48,7 +50,6 @@ class SecurityAutoScan extends Command
 
         $this->newLine();
 
-
         /*
          * =====================================================
          * DATABASE CONNECTION QUERY
@@ -56,7 +57,6 @@ class SecurityAutoScan extends Command
          */
 
         $query = DatabaseConnection::query();
-
 
         /*
          * Jika connection tertentu dipilih.
@@ -79,11 +79,9 @@ class SecurityAutoScan extends Command
             );
         }
 
-
         $connections = $query
             ->orderBy('id')
             ->get();
-
 
         /*
          * =====================================================
@@ -100,14 +98,12 @@ class SecurityAutoScan extends Command
             return self::SUCCESS;
         }
 
-
         $this->line(
-            'Database ditemukan : ' .
+            'Database ditemukan : '.
             $connections->count()
         );
 
         $this->newLine();
-
 
         /*
          * =====================================================
@@ -123,7 +119,6 @@ class SecurityAutoScan extends Command
 
         $alertFailed = 0;
 
-
         /*
          * =====================================================
          * LOOP CONNECTIONS
@@ -137,24 +132,23 @@ class SecurityAutoScan extends Command
             );
 
             $this->info(
-                'Scanning: ' .
+                'Scanning: '.
                 ($connection->name ?? 'Unnamed Database')
             );
 
             $this->line(
-                'Connection ID : ' .
+                'Connection ID : '.
                 $connection->id
             );
 
             $this->line(
-                'Driver        : ' .
+                'Driver        : '.
                 strtoupper(
                     $connection->driver ?? '-'
                 )
             );
 
             $this->newLine();
-
 
             try {
 
@@ -172,7 +166,6 @@ class SecurityAutoScan extends Command
                         )
                         ->max('id');
 
-
                 /*
                  * =============================================
                  * RUN SECURITY SCAN
@@ -183,11 +176,9 @@ class SecurityAutoScan extends Command
                     $this->call(
                         'security:scan-connection',
                         [
-                            'connection' =>
-                                $connection->id,
+                            'connection' => $connection->id,
                         ]
                     );
-
 
                 /*
                  * =============================================
@@ -208,14 +199,11 @@ class SecurityAutoScan extends Command
                     continue;
                 }
 
-
                 $scanSuccess++;
-
 
                 $this->info(
                     '✓ Vulnerability scan berhasil.'
                 );
-
 
                 /*
                  * =============================================
@@ -245,14 +233,13 @@ class SecurityAutoScan extends Command
                         ->latest('id')
                         ->first();
 
-
                 /*
                  * Fallback.
                  *
                  * Jika ini scan pertama, beforeAssessmentId
                  * kemungkinan null.
                  */
-                if (!$newAssessment) {
+                if (! $newAssessment) {
 
                     $newAssessment =
                         VulnerabilityAssessment::query()
@@ -264,14 +251,13 @@ class SecurityAutoScan extends Command
                             ->first();
                 }
 
-
                 /*
                  * =============================================
                  * ASSESSMENT TIDAK DITEMUKAN
                  * =============================================
                  */
 
-                if (!$newAssessment) {
+                if (! $newAssessment) {
 
                     $alertFailed++;
 
@@ -284,12 +270,10 @@ class SecurityAutoScan extends Command
                     continue;
                 }
 
-
                 $this->line(
-                    'Assessment baru : #' .
+                    'Assessment baru : #'.
                     $newAssessment->id
                 );
-
 
                 /*
                  * =============================================
@@ -303,11 +287,9 @@ class SecurityAutoScan extends Command
                         $this->call(
                             'security:generate-alerts',
                             [
-                                '--assessment' =>
-                                    $newAssessment->id,
+                                '--assessment' => $newAssessment->id,
                             ]
                         );
-
 
                     if ($alertExitCode === 0) {
 
@@ -330,27 +312,28 @@ class SecurityAutoScan extends Command
 
                     $alertFailed++;
 
+                    $this->reportConsoleException($e);
+
                     $this->error(
-                        '✗ Alert error: ' .
-                        $e->getMessage()
+                        '✗ Alert error: '.
+                        $this->safeConsoleExceptionMessage()
                     );
                 }
-
 
             } catch (Throwable $e) {
 
                 $scanFailed++;
 
+                $this->reportConsoleException($e);
+
                 $this->error(
-                    '✗ Scan error: ' .
-                    $e->getMessage()
+                    '✗ Scan error: '.
+                    $this->safeConsoleExceptionMessage()
                 );
             }
 
-
             $this->newLine();
         }
-
 
         /*
          * =====================================================
@@ -371,32 +354,31 @@ class SecurityAutoScan extends Command
         );
 
         $this->line(
-            'Database             : ' .
+            'Database             : '.
             $connections->count()
         );
 
         $this->line(
-            'Scan Success         : ' .
+            'Scan Success         : '.
             $scanSuccess
         );
 
         $this->line(
-            'Scan Failed          : ' .
+            'Scan Failed          : '.
             $scanFailed
         );
 
         $this->line(
-            'Alert Generation OK  : ' .
+            'Alert Generation OK  : '.
             $alertSuccess
         );
 
         $this->line(
-            'Alert Generation Fail: ' .
+            'Alert Generation Fail: '.
             $alertFailed
         );
 
         $this->newLine();
-
 
         /*
          * =====================================================
@@ -411,7 +393,6 @@ class SecurityAutoScan extends Command
 
             return self::FAILURE;
         }
-
 
         return self::SUCCESS;
     }

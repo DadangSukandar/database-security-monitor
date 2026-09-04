@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\HandlesSafeConsoleExceptions;
 use App\Models\SecurityAlert;
 use App\Models\SecurityAlertHistory;
 use App\Models\VulnerabilityFinding;
@@ -19,6 +20,8 @@ use Throwable;
 #[Description('Safely backfill correlation metadata for historical security alerts')]
 class BackfillSecurityAlertCorrelation extends Command
 {
+    use HandlesSafeConsoleExceptions;
+
     /** @var array<string, string> */
     private const SKIP_REASON_LABELS = [
         'missing_connection' => 'Missing connection',
@@ -99,8 +102,15 @@ class BackfillSecurityAlertCorrelation extends Command
             try {
                 $updated = $apply ? $this->applyConsolidationPlans($plans) : 0;
             } catch (Throwable $exception) {
-                $this->error('Historical consolidation failed and all changes were rolled back.');
-                $this->error($exception->getMessage());
+                $this->reportConsoleException($exception);
+
+                $this->error(
+                    'Historical consolidation failed and all changes were rolled back.'
+                );
+
+                $this->error(
+                    $this->safeConsoleExceptionMessage()
+                );
 
                 return self::FAILURE;
             }
