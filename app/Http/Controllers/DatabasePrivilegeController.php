@@ -12,8 +12,14 @@ class DatabasePrivilegeController extends Controller
 {
     public function index(Request $request)
     {
+        $teamId = (int) $request->user()->current_team_id;
+
         $query = DatabasePrivilege::query()
-            ->with('databaseConnection');
+            ->with('databaseConnection')
+            ->whereHas(
+                'databaseConnection',
+                fn ($connectionQuery) => $connectionQuery->forTeam($teamId)
+            );
 
         /*
         |--------------------------------------------------------------------------
@@ -105,6 +111,7 @@ class DatabasePrivilegeController extends Controller
             ->withQueryString();
 
         $connections = DatabaseConnection::query()
+            ->forTeam($teamId)
             ->orderBy('name')
             ->get();
 
@@ -114,26 +121,25 @@ class DatabasePrivilegeController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $totalPrivileges =
-            DatabasePrivilege::count();
+        $privilegeStatsQuery = DatabasePrivilege::query()
+            ->whereHas(
+                'databaseConnection',
+                fn ($connectionQuery) => $connectionQuery->forTeam($teamId)
+            );
 
-        $highRisk =
-            DatabasePrivilege::where(
-                'risk_level',
-                'HIGH'
-            )->count();
+        $totalPrivileges = (clone $privilegeStatsQuery)->count();
 
-        $mediumRisk =
-            DatabasePrivilege::where(
-                'risk_level',
-                'MEDIUM'
-            )->count();
+        $highRisk = (clone $privilegeStatsQuery)
+            ->where('risk_level', 'HIGH')
+            ->count();
 
-        $grantable =
-            DatabasePrivilege::where(
-                'is_grantable',
-                true
-            )->count();
+        $mediumRisk = (clone $privilegeStatsQuery)
+            ->where('risk_level', 'MEDIUM')
+            ->count();
+
+        $grantable = (clone $privilegeStatsQuery)
+            ->where('is_grantable', true)
+            ->count();
 
         return view(
             'database-privileges.index',
@@ -155,9 +161,15 @@ class DatabasePrivilegeController extends Controller
     */
 
     public function scan(
+        Request $request,
         DatabaseConnection $databaseConnection,
         DatabaseConnectorService $connector
     ) {
+        $this->ensureConnectionBelongsToCurrentTeam(
+            $request,
+            $databaseConnection
+        );
+
         try {
             return $connector->withConnection(
                 $databaseConnection,
@@ -720,5 +732,18 @@ class DatabasePrivilegeController extends Controller
 
             'reason' => 'Privilege database standar.',
         ];
+    }
+
+    private function ensureConnectionBelongsToCurrentTeam(
+        Request $request,
+        DatabaseConnection $databaseConnection
+    ): void {
+        $teamId = $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $databaseConnection->team_id !== (int) $teamId,
+            404
+        );
     }
 }

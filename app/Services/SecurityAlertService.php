@@ -3,8 +3,9 @@
 namespace App\Services;
 
 use App\Models\DatabaseActivity;
+use App\Models\DatabaseConnection;
 use App\Models\SecurityAlert;
-use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 class SecurityAlertService
 {
@@ -27,8 +28,7 @@ class SecurityAlertService
                 'type' => 'DROP_DATABASE',
                 'severity' => 'CRITICAL',
                 'title' => 'DROP DATABASE detected',
-                'description' =>
-                    'A database deletion command was detected.'
+                'description' => 'A database deletion command was detected.',
             ],
 
             [
@@ -36,8 +36,7 @@ class SecurityAlertService
                 'type' => 'DROP_TABLE',
                 'severity' => 'CRITICAL',
                 'title' => 'DROP TABLE detected',
-                'description' =>
-                    'A table deletion command was detected.'
+                'description' => 'A table deletion command was detected.',
             ],
 
             [
@@ -45,8 +44,7 @@ class SecurityAlertService
                 'type' => 'TRUNCATE_TABLE',
                 'severity' => 'CRITICAL',
                 'title' => 'TRUNCATE TABLE detected',
-                'description' =>
-                    'A table truncation command was detected.'
+                'description' => 'A table truncation command was detected.',
             ],
 
             [
@@ -54,8 +52,7 @@ class SecurityAlertService
                 'type' => 'GRANT_PRIVILEGE',
                 'severity' => 'HIGH',
                 'title' => 'GRANT privilege detected',
-                'description' =>
-                    'A privilege grant operation was detected.'
+                'description' => 'A privilege grant operation was detected.',
             ],
 
             [
@@ -63,8 +60,7 @@ class SecurityAlertService
                 'type' => 'REVOKE_PRIVILEGE',
                 'severity' => 'HIGH',
                 'title' => 'REVOKE privilege detected',
-                'description' =>
-                    'A privilege revoke operation was detected.'
+                'description' => 'A privilege revoke operation was detected.',
             ],
 
             [
@@ -72,8 +68,7 @@ class SecurityAlertService
                 'type' => 'CREATE_USER',
                 'severity' => 'HIGH',
                 'title' => 'CREATE USER detected',
-                'description' =>
-                    'A database user creation operation was detected.'
+                'description' => 'A database user creation operation was detected.',
             ],
 
             [
@@ -81,8 +76,7 @@ class SecurityAlertService
                 'type' => 'DROP_USER',
                 'severity' => 'CRITICAL',
                 'title' => 'DROP USER detected',
-                'description' =>
-                    'A database user deletion operation was detected.'
+                'description' => 'A database user deletion operation was detected.',
             ],
 
             [
@@ -90,8 +84,7 @@ class SecurityAlertService
                 'type' => 'ALTER_TABLE',
                 'severity' => 'HIGH',
                 'title' => 'ALTER TABLE detected',
-                'description' =>
-                    'A table structure modification was detected.'
+                'description' => 'A table structure modification was detected.',
             ],
 
             [
@@ -99,8 +92,7 @@ class SecurityAlertService
                 'type' => 'CREATE_DATABASE',
                 'severity' => 'HIGH',
                 'title' => 'CREATE DATABASE detected',
-                'description' =>
-                    'A database creation operation was detected.'
+                'description' => 'A database creation operation was detected.',
             ],
         ];
 
@@ -108,45 +100,32 @@ class SecurityAlertService
 
             if (preg_match($rule['pattern'], $normalized)) {
 
-                return SecurityAlert::create([
-                    'database_activity_id' =>
-                        $activity->id,
+                return $this->createOwnedAlert($activity, [
+                    'database_activity_id' => $activity->id,
 
-                    'database_connection_id' =>
-                        $activity->database_connection_id,
+                    'database_connection_id' => $activity->database_connection_id,
 
-                    'database_name' =>
-                        $activity->database_name,
+                    'database_name' => $activity->database_name,
 
-                    'username' =>
-                        $activity->username,
+                    'username' => $activity->username,
 
-                    'client_ip' =>
-                        $activity->client_ip,
+                    'client_ip' => $activity->client_ip,
 
-                    'alert_type' =>
-                        $rule['type'],
+                    'alert_type' => $rule['type'],
 
-                    'severity' =>
-                        $rule['severity'],
+                    'severity' => $rule['severity'],
 
-                    'title' =>
-                        $rule['title'],
+                    'title' => $rule['title'],
 
-                    'description' =>
-                        $rule['description'],
+                    'description' => $rule['description'],
 
-                    'query' =>
-                        $query,
+                    'query' => $query,
 
-                    'table_name' =>
-                        $activity->table_name,
+                    'table_name' => $activity->table_name,
 
-                    'status' =>
-                        'OPEN',
+                    'status' => 'OPEN',
 
-                    'detected_at' =>
-                        $activity->executed_at ?? now(),
+                    'detected_at' => $activity->executed_at ?? now(),
                 ]);
             }
         }
@@ -156,48 +135,35 @@ class SecurityAlertService
          */
         if (
             preg_match('/\bUPDATE\b/i', $normalized) &&
-            !preg_match('/\bWHERE\b/i', $normalized)
+            ! preg_match('/\bWHERE\b/i', $normalized)
         ) {
 
-            return SecurityAlert::create([
-                'database_activity_id' =>
-                    $activity->id,
+            return $this->createOwnedAlert($activity, [
+                'database_activity_id' => $activity->id,
 
-                'database_connection_id' =>
-                    $activity->database_connection_id,
+                'database_connection_id' => $activity->database_connection_id,
 
-                'database_name' =>
-                    $activity->database_name,
+                'database_name' => $activity->database_name,
 
-                'username' =>
-                    $activity->username,
+                'username' => $activity->username,
 
-                'client_ip' =>
-                    $activity->client_ip,
+                'client_ip' => $activity->client_ip,
 
-                'alert_type' =>
-                    'UPDATE_WITHOUT_WHERE',
+                'alert_type' => 'UPDATE_WITHOUT_WHERE',
 
-                'severity' =>
-                    'MEDIUM',
+                'severity' => 'MEDIUM',
 
-                'title' =>
-                    'UPDATE without WHERE detected',
+                'title' => 'UPDATE without WHERE detected',
 
-                'description' =>
-                    'An UPDATE query without a WHERE condition was detected.',
+                'description' => 'An UPDATE query without a WHERE condition was detected.',
 
-                'query' =>
-                    $query,
+                'query' => $query,
 
-                'table_name' =>
-                    $activity->table_name,
+                'table_name' => $activity->table_name,
 
-                'status' =>
-                    'OPEN',
+                'status' => 'OPEN',
 
-                'detected_at' =>
-                    $activity->executed_at ?? now(),
+                'detected_at' => $activity->executed_at ?? now(),
             ]);
         }
 
@@ -206,51 +172,61 @@ class SecurityAlertService
          */
         if (
             preg_match('/\bDELETE\s+FROM\b/i', $normalized) &&
-            !preg_match('/\bWHERE\b/i', $normalized)
+            ! preg_match('/\bWHERE\b/i', $normalized)
         ) {
 
-            return SecurityAlert::create([
-                'database_activity_id' =>
-                    $activity->id,
+            return $this->createOwnedAlert($activity, [
+                'database_activity_id' => $activity->id,
 
-                'database_connection_id' =>
-                    $activity->database_connection_id,
+                'database_connection_id' => $activity->database_connection_id,
 
-                'database_name' =>
-                    $activity->database_name,
+                'database_name' => $activity->database_name,
 
-                'username' =>
-                    $activity->username,
+                'username' => $activity->username,
 
-                'client_ip' =>
-                    $activity->client_ip,
+                'client_ip' => $activity->client_ip,
 
-                'alert_type' =>
-                    'DELETE_WITHOUT_WHERE',
+                'alert_type' => 'DELETE_WITHOUT_WHERE',
 
-                'severity' =>
-                    'HIGH',
+                'severity' => 'HIGH',
 
-                'title' =>
-                    'DELETE without WHERE detected',
+                'title' => 'DELETE without WHERE detected',
 
-                'description' =>
-                    'A DELETE query without a WHERE condition was detected.',
+                'description' => 'A DELETE query without a WHERE condition was detected.',
 
-                'query' =>
-                    $query,
+                'query' => $query,
 
-                'table_name' =>
-                    $activity->table_name,
+                'table_name' => $activity->table_name,
 
-                'status' =>
-                    'OPEN',
+                'status' => 'OPEN',
 
-                'detected_at' =>
-                    $activity->executed_at ?? now(),
+                'detected_at' => $activity->executed_at ?? now(),
             ]);
         }
 
         return null;
+    }
+
+    private function createOwnedAlert(
+        DatabaseActivity $activity,
+        array $attributes
+    ): SecurityAlert {
+        $teamId = DatabaseConnection::query()
+            ->whereKey($activity->database_connection_id)
+            ->value('team_id');
+
+        if ($teamId === null) {
+            throw new InvalidArgumentException(
+                'Cannot create security alert without trusted team ownership.'
+            );
+        }
+
+        $alert = new SecurityAlert($attributes);
+
+        $alert->team_id = (int) $teamId;
+
+        $alert->save();
+
+        return $alert;
     }
 }

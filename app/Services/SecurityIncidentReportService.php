@@ -11,9 +11,16 @@ use Illuminate\Support\Collection;
 class SecurityIncidentReportService
 {
     /** @return array<string, mixed> */
-    public function build(CarbonInterface $start, CarbonInterface $end): array
-    {
-        $incidents = $this->incidentQuery($start, $end)
+    public function build(
+        int $teamId,
+        CarbonInterface $start,
+        CarbonInterface $end
+    ): array {
+        $incidents = $this->incidentQuery(
+            $teamId,
+            $start,
+            $end
+        )
             ->with('assignedTo:id,name')
             ->get([
                 'id',
@@ -26,7 +33,11 @@ class SecurityIncidentReportService
                 'closed_at',
             ]);
 
-        $reportQuery = $this->incidentQuery($start, $end);
+        $reportQuery = $this->incidentQuery(
+            $teamId,
+            $start,
+            $end
+        );
 
         $totalIncidents = (clone $reportQuery)->count();
 
@@ -80,7 +91,11 @@ class SecurityIncidentReportService
                 'MEDIUM',
                 'LOW',
             ]),
-            'priority_breakdown' => $this->priorityBreakdown($start, $end),
+            'priority_breakdown' => $this->priorityBreakdown(
+                $teamId,
+                $start,
+                $end
+            ),
             'assignment_breakdown' => $this->assignmentBreakdown($incidents),
             'sla' => [
                 'acknowledged' => $acknowledgedCount,
@@ -100,16 +115,32 @@ class SecurityIncidentReportService
                     'resolved_at'
                 ),
             ],
-            'trends' => $this->trends($start, $end),
-            'audit_summary' => $this->auditSummary($start, $end),
+            'trends' => $this->trends(
+                $teamId,
+                $start,
+                $end
+            ),
+
+            'audit_summary' => $this->auditSummary(
+                $teamId,
+                $start,
+                $end
+            ),
         ];
     }
 
-    public function auditQuery(CarbonInterface $start, CarbonInterface $end): Builder
-    {
+    public function auditQuery(
+        int $teamId,
+        CarbonInterface $start,
+        CarbonInterface $end
+    ): Builder {
         return SecurityIncidentHistory::query()
+            ->whereHas(
+                'incident',
+                fn (Builder $query) => $query->forTeam($teamId)
+            )
             ->with([
-                'incident:id,incident_number,title',
+                'incident:id,team_id,incident_number,title',
                 'user:id,name,email',
             ])
             ->whereBetween('created_at', [$start, $end])
@@ -117,9 +148,13 @@ class SecurityIncidentReportService
             ->latest('id');
     }
 
-    private function incidentQuery(CarbonInterface $start, CarbonInterface $end): Builder
-    {
+    private function incidentQuery(
+        int $teamId,
+        CarbonInterface $start,
+        CarbonInterface $end
+    ): Builder {
         return SecurityIncident::query()
+            ->forTeam($teamId)
             ->whereBetween('opened_at', [$start, $end]);
     }
 
@@ -151,10 +186,15 @@ class SecurityIncidentReportService
      * @return array<string, int>
      */
     private function priorityBreakdown(
+        int $teamId,
         CarbonInterface $start,
         CarbonInterface $end
     ): array {
-        $query = $this->incidentQuery($start, $end);
+        $query = $this->incidentQuery(
+            $teamId,
+            $start,
+            $end
+        );
 
         return [
             'P1' => (clone $query)
@@ -229,22 +269,26 @@ class SecurityIncidentReportService
 
     /** @return list<array{date: string, opened: int, resolved: int, closed: int}> */
     private function trends(
+        int $teamId,
         CarbonInterface $start,
         CarbonInterface $end
     ): array {
         $opened = $this->dailyIncidentCounts(
+            $teamId,
             'opened_at',
             $start,
             $end
         );
 
         $resolved = $this->dailyIncidentCounts(
+            $teamId,
             'resolved_at',
             $start,
             $end
         );
 
         $closed = $this->dailyIncidentCounts(
+            $teamId,
             'closed_at',
             $start,
             $end
@@ -274,6 +318,7 @@ class SecurityIncidentReportService
      * @return array<string, int>
      */
     private function dailyIncidentCounts(
+        int $teamId,
         string $column,
         CarbonInterface $start,
         CarbonInterface $end
@@ -290,8 +335,11 @@ class SecurityIncidentReportService
         };
 
         return SecurityIncident::query()
+            ->forTeam($teamId)
             ->whereBetween($column, [$start, $end])
-            ->selectRaw("{$dateExpression} as event_date, COUNT(*) as aggregate")
+            ->selectRaw(
+                "{$dateExpression} as event_date, COUNT(*) as aggregate"
+            )
             ->groupByRaw($dateExpression)
             ->pluck('aggregate', 'event_date')
             ->map(fn ($count): int => (int) $count)
@@ -300,12 +348,19 @@ class SecurityIncidentReportService
 
     /** @return array<string, int> */
     private function auditSummary(
+        int $teamId,
         CarbonInterface $start,
         CarbonInterface $end
     ): array {
         $actionCounts = SecurityIncidentHistory::query()
+            ->whereHas(
+                'incident',
+                fn (Builder $query) => $query->forTeam($teamId)
+            )
             ->whereBetween('created_at', [$start, $end])
-            ->selectRaw('UPPER(action) as action_key, COUNT(*) as aggregate')
+            ->selectRaw(
+                'UPPER(action) as action_key, COUNT(*) as aggregate'
+            )
             ->groupByRaw('UPPER(action)')
             ->pluck('aggregate', 'action_key');
 

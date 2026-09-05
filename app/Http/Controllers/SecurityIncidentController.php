@@ -14,8 +14,31 @@ use Throwable;
 
 class SecurityIncidentController extends Controller
 {
+    private function ensureIncidentBelongsToCurrentTeam(
+        Request $request,
+        SecurityIncident $incident
+    ): void {
+        $teamId = $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $incident->team_id !== (int) $teamId,
+            404
+        );
+    }
+
     public function index(Request $request): View
     {
+
+        $currentTeam = $request->user()->currentTeam;
+
+        $teamId = (int) $currentTeam->id;
+
+        $teamMembers = $currentTeam
+            ->members()
+            ->orderBy('name')
+            ->get();
+
         $filters = $request->validate([
             'search' => [
                 'nullable',
@@ -58,6 +81,9 @@ class SecurityIncidentController extends Controller
 
         $currentTeam = $request->user()->currentTeam;
 
+        $incidentQuery = SecurityIncident::query()
+            ->forTeam($teamId);
+
         $teamMembers = $currentTeam
             ? $currentTeam
                 ->members()
@@ -90,19 +116,19 @@ class SecurityIncidentController extends Controller
         }
 
         $incidentMetrics = [
-            'active' => SecurityIncident::query()
+            'active' => (clone $incidentQuery)
                 ->where('status', '!=', 'CLOSED')
                 ->count(),
 
-            'open' => SecurityIncident::query()
+            'open' => (clone $incidentQuery)
                 ->where('status', 'OPEN')
                 ->count(),
 
-            'investigating' => SecurityIncident::query()
+            'investigating' => (clone $incidentQuery)
                 ->where('status', 'INVESTIGATING')
                 ->count(),
 
-            'critical_high' => SecurityIncident::query()
+            'critical_high' => (clone $incidentQuery)
                 ->where('status', '!=', 'CLOSED')
                 ->whereIn('severity', [
                     'CRITICAL',
@@ -110,13 +136,13 @@ class SecurityIncidentController extends Controller
                 ])
                 ->count(),
 
-            'unassigned' => SecurityIncident::query()
+            'unassigned' => (clone $incidentQuery)
                 ->where('status', '!=', 'CLOSED')
                 ->whereNull('assigned_to_user_id')
                 ->count(),
         ];
 
-        $oldestActiveIncident = SecurityIncident::query()
+        $oldestActiveIncident = (clone $incidentQuery)
             ->where('status', '!=', 'CLOSED')
             ->whereNotNull('opened_at')
             ->oldest('opened_at')
@@ -127,18 +153,18 @@ class SecurityIncidentController extends Controller
         ];
 
         $incidentSlaMetrics = [
-            'breached' => SecurityIncident::query()
+            'breached' => (clone $incidentQuery)
                 ->where('status', '!=', 'CLOSED')
                 ->whereResponseSlaStatus('BREACHED')
                 ->count(),
 
-            'due_soon' => SecurityIncident::query()
+            'due_soon' => (clone $incidentQuery)
                 ->where('status', '!=', 'CLOSED')
                 ->whereResponseSlaStatus('DUE_SOON')
                 ->count(),
         ];
 
-        $acknowledgedIncidents = SecurityIncident::query()
+        $acknowledgedIncidents = (clone $incidentQuery)
             ->whereNotNull('opened_at')
             ->whereNotNull('acknowledged_at')
             ->get([
@@ -149,7 +175,7 @@ class SecurityIncidentController extends Controller
                 'acknowledged_at',
             ]);
 
-        $resolvedIncidents = SecurityIncident::query()
+        $resolvedIncidents = (clone $incidentQuery)
             ->whereNotNull('opened_at')
             ->whereNotNull('resolved_at')
             ->get([
@@ -172,19 +198,19 @@ class SecurityIncidentController extends Controller
                 )
             );
 
-        $acknowledgementSlaMet = SecurityIncident::query()
-        ->whereNotNull('opened_at')
-        ->whereNotNull('acknowledged_at')
-        ->whereResponseSlaStatus('MET')
-        ->count();
+        $acknowledgementSlaMet = (clone $incidentQuery)
+            ->whereNotNull('opened_at')
+            ->whereNotNull('acknowledged_at')
+            ->whereResponseSlaStatus('MET')
+            ->count();
 
-        $acknowledgementSlaBreached = SecurityIncident::query()
+        $acknowledgementSlaBreached = (clone $incidentQuery)
             ->whereNotNull('opened_at')
             ->whereNotNull('acknowledged_at')
             ->whereResponseSlaStatus('BREACHED')
             ->count();
 
-        $acknowledgedCount = SecurityIncident::query()
+        $acknowledgedCount = (clone $incidentQuery)
             ->whereNotNull('opened_at')
             ->whereNotNull('acknowledged_at')
             ->count();
@@ -211,6 +237,7 @@ class SecurityIncidentController extends Controller
         ];
 
         $incidents = SecurityIncident::query()
+            ->forTeam($teamId)
             ->with([
                 'securityAlert',
                 'assignedTo',
@@ -293,8 +320,14 @@ class SecurityIncidentController extends Controller
     }
 
     public function show(
+        Request $request,
         SecurityIncident $incident
     ): View {
+        $this->ensureIncidentBelongsToCurrentTeam(
+            $request,
+            $incident
+        );
+
         $incident->load([
             'securityAlert',
             'assignedTo',
@@ -302,14 +335,12 @@ class SecurityIncidentController extends Controller
             'histories.user',
         ]);
 
-        $currentTeam = auth()->user()->currentTeam;
+        $currentTeam = $request->user()->currentTeam;
 
         $teamMembers = $currentTeam
-            ? $currentTeam
-                ->members()
-                ->orderBy('name')
-                ->get()
-            : collect();
+            ->members()
+            ->orderBy('name')
+            ->get();
 
         return view(
             'security-incidents.show',
@@ -325,6 +356,11 @@ class SecurityIncidentController extends Controller
         SecurityIncident $incident,
         SecurityIncidentLifecycleService $lifecycle
     ): RedirectResponse {
+        $this->ensureIncidentBelongsToCurrentTeam(
+            $request,
+            $incident
+        );
+
         try {
             $lifecycle->acknowledge(
                 $incident,
@@ -347,6 +383,11 @@ class SecurityIncidentController extends Controller
         SecurityIncident $incident,
         SecurityIncidentLifecycleService $lifecycle
     ): RedirectResponse {
+
+        $this->ensureIncidentBelongsToCurrentTeam(
+            $request,
+            $incident
+        );
         try {
             $lifecycle->investigate(
                 $incident,
@@ -369,6 +410,11 @@ class SecurityIncidentController extends Controller
         SecurityIncident $incident,
         SecurityIncidentLifecycleService $lifecycle
     ): RedirectResponse {
+        $this->ensureIncidentBelongsToCurrentTeam(
+            $request,
+            $incident
+        );
+
         try {
             $lifecycle->contain(
                 $incident,
@@ -391,6 +437,11 @@ class SecurityIncidentController extends Controller
         SecurityIncident $incident,
         SecurityIncidentLifecycleService $lifecycle
     ): RedirectResponse {
+        $this->ensureIncidentBelongsToCurrentTeam(
+            $request,
+            $incident
+        );
+
         $validated = $request->validate([
             'resolution_note' => [
                 'required',
@@ -422,6 +473,11 @@ class SecurityIncidentController extends Controller
         SecurityIncident $incident,
         SecurityIncidentLifecycleService $lifecycle
     ): RedirectResponse {
+        $this->ensureIncidentBelongsToCurrentTeam(
+            $request,
+            $incident
+        );
+
         try {
             $lifecycle->close(
                 $incident,
@@ -444,6 +500,10 @@ class SecurityIncidentController extends Controller
         SecurityIncident $incident,
         SecurityIncidentAssignmentService $assignment
     ): RedirectResponse {
+        $this->ensureIncidentBelongsToCurrentTeam(
+            $request,
+            $incident
+        );
         $validated = $request->validate([
             'assigned_to_user_id' => [
                 'required',
@@ -499,6 +559,11 @@ class SecurityIncidentController extends Controller
         SecurityIncident $incident,
         SecurityIncidentAssignmentService $assignment
     ): RedirectResponse {
+        $this->ensureIncidentBelongsToCurrentTeam(
+            $request,
+            $incident
+        );
+
         try {
             $assignment->unassign(
                 $incident,
@@ -522,6 +587,10 @@ class SecurityIncidentController extends Controller
         SecurityIncident $incident,
         SecurityIncidentInvestigationService $investigation
     ): RedirectResponse {
+        $this->ensureIncidentBelongsToCurrentTeam(
+            $request,
+            $incident
+        );
         $validated = $request->validate([
             'note' => [
                 'required',

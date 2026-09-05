@@ -7,6 +7,7 @@ use App\Models\SecurityAlertHistory;
 use App\Models\SecurityIncident;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -17,8 +18,9 @@ class SecurityDashboardController extends Controller
      * SECURITY DASHBOARD
      * =========================================================
      */
-    public function index(): View
+    public function index(Request $request): View
     {
+        $teamId = (int) $request->user()->current_team_id;
         /*
          * =====================================================
          * LATEST ASSESSMENT
@@ -309,6 +311,7 @@ class SecurityDashboardController extends Controller
          */
 
         $alertQuery = SecurityAlert::query()
+            ->forTeam($teamId)
             ->canonical()
             ->where(
                 'alert_type',
@@ -469,7 +472,16 @@ class SecurityDashboardController extends Controller
 
         $recentAlertActivity = SecurityAlertHistory::query()
             ->with('alert')
-            ->whereHas('alert', fn ($query) => $query->canonical()->where('alert_type', 'VULNERABILITY'))
+            ->whereHas(
+                'alert',
+                fn ($query) => $query
+                    ->forTeam($teamId)
+                    ->canonical()
+                    ->where(
+                        'alert_type',
+                        'VULNERABILITY'
+                    )
+            )
             ->latest()
             ->limit(8)
             ->get();
@@ -496,6 +508,7 @@ class SecurityDashboardController extends Controller
 
             $latestDatabaseAlerts =
                 SecurityAlert::query()
+                    ->forTeam($teamId)
                     ->canonical()
                     ->where(
                         'alert_type',
@@ -522,6 +535,7 @@ class SecurityDashboardController extends Controller
 
         $alertSeverityDistribution =
             SecurityAlert::query()
+                ->forTeam($teamId)
                 ->canonical()
                 ->where(
                     'alert_type',

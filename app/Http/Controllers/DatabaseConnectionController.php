@@ -18,9 +18,13 @@ class DatabaseConnectionController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function index()
+    public function index(Request $request)
     {
-        $connections = DatabaseConnection::latest()
+        $teamId = (int) $request->user()->current_team_id;
+
+        $connections = DatabaseConnection::query()
+            ->forTeam($teamId)
+            ->latest()
             ->paginate(10);
 
         return view(
@@ -112,10 +116,11 @@ class DatabaseConnectionController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $connection =
-            DatabaseConnection::create(
-                $validated
-            );
+        $connection = new DatabaseConnection($validated);
+
+        $connection->team_id = (int) $request->user()->current_team_id;
+
+        $connection->save();
 
         try {
             /*
@@ -174,8 +179,13 @@ class DatabaseConnectionController extends Controller
     */
 
     public function show(
+        Request $request,
         DatabaseConnection $databaseConnection
     ) {
+        $this->ensureConnectionBelongsToCurrentTeam(
+            $request,
+            $databaseConnection
+        );
 
         $databaseConnection->load([
             'discoveredDatabases.tables.columns',
@@ -194,10 +204,17 @@ class DatabaseConnectionController extends Controller
     */
 
     public function test(
+        Request $request,
         DatabaseConnection $databaseConnection,
         DatabaseConnectorService $connector
     ) {
+        $this->ensureConnectionBelongsToCurrentTeam(
+            $request,
+            $databaseConnection
+        );
+
         try {
+
             /*
             |--------------------------------------------------------------------------
             | TEST CONNECTION
@@ -232,9 +249,15 @@ class DatabaseConnectionController extends Controller
     */
 
     public function scan(
+        Request $request,
         DatabaseConnection $databaseConnection,
         DatabaseConnectorService $connector
     ) {
+        $this->ensureConnectionBelongsToCurrentTeam(
+            $request,
+            $databaseConnection
+        );
+
         try {
             return $connector->withConnection(
                 $databaseConnection,
@@ -660,8 +683,13 @@ class DatabaseConnectionController extends Controller
     */
 
     public function destroy(
+        Request $request,
         DatabaseConnection $databaseConnection
     ) {
+        $this->ensureConnectionBelongsToCurrentTeam(
+            $request,
+            $databaseConnection
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -689,5 +717,18 @@ class DatabaseConnectionController extends Controller
                 'success',
                 'Connection berhasil dihapus.'
             );
+    }
+
+    private function ensureConnectionBelongsToCurrentTeam(
+        Request $request,
+        DatabaseConnection $databaseConnection
+    ): void {
+        $teamId = $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $databaseConnection->team_id !== (int) $teamId,
+            404
+        );
     }
 }

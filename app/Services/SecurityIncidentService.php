@@ -71,7 +71,7 @@ class SecurityIncidentService
             $attempt++
         ) {
             try {
-                return SecurityIncident::query()->create([
+                $incident = new SecurityIncident([
                     'incident_number' => $this->nextIncidentNumber(),
 
                     'security_alert_id' => $alert->id,
@@ -87,10 +87,10 @@ class SecurityIncidentService
                     'status' => 'OPEN',
 
                     /*
-                     * Carry the current alert PIC into the incident.
-                     *
-                     * Assignment remains independent after creation.
-                     */
+                    * Carry the current alert PIC into the incident.
+                    *
+                    * Assignment remains independent after creation.
+                    */
                     'assigned_to_user_id' => $alert->assigned_to_user_id,
 
                     'assigned_at' => $alert->assigned_to_user_id !== null
@@ -101,6 +101,12 @@ class SecurityIncidentService
 
                     'opened_at' => now(),
                 ]);
+
+                $incident->team_id = $alert->team_id;
+
+                $incident->save();
+
+                return $incident;
             } catch (QueryException $exception) {
                 $lastException = $exception;
 

@@ -560,4 +560,20 @@ class SecurityIncident extends Model
             'security_incident_id'
         );
     }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    /** @param Builder<SecurityIncident> $query */
+    public function scopeForTeam(
+        Builder $query,
+        int $teamId
+    ): Builder {
+        return $query->where(
+            'team_id',
+            $teamId
+        );
+    }
 }

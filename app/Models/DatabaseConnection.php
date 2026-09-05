@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Enums\DatabaseConnectionFailureType;
 use App\Enums\DatabaseConnectionHealthStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
 
@@ -126,6 +128,22 @@ class DatabaseConnection extends Model
     {
         return $this->hasMany(
             VulnerabilityAssessment::class
+        );
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    /** @param Builder<DatabaseConnection> $query */
+    public function scopeForTeam(
+        Builder $query,
+        int $teamId
+    ): Builder {
+        return $query->where(
+            'team_id',
+            $teamId
         );
     }
 }

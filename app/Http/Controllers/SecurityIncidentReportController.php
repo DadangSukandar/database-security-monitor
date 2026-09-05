@@ -14,6 +14,7 @@ class SecurityIncidentReportController extends Controller
         Request $request,
         SecurityIncidentReportService $reportService
     ): View {
+        $teamId = (int) $request->user()->current_team_id;
         $filters = $request->validate([
             'start_date' => ['nullable', 'date_format:Y-m-d'],
             'end_date' => ['nullable', 'date_format:Y-m-d'],
@@ -40,10 +41,23 @@ class SecurityIncidentReportController extends Controller
             ]);
         }
 
-        $report = $reportService->build($startDate, $endDate);
+        $report = $reportService->build(
+            $teamId,
+            $startDate,
+            $endDate
+        );
+
         $auditActivities = $reportService
-            ->auditQuery($startDate, $endDate)
-            ->paginate(25, ['*'], 'audit_page')
+            ->auditQuery(
+                $teamId,
+                $startDate,
+                $endDate
+            )
+            ->paginate(
+                25,
+                ['*'],
+                'audit_page'
+            )
             ->withQueryString();
 
         return view('security-incidents.report', compact(

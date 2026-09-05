@@ -22,7 +22,10 @@ class SecurityAlertController extends Controller
      */
     public function index(Request $request): View
     {
+        $teamId = (int) $request->user()->current_team_id;
+
         $query = SecurityAlert::query()
+            ->forTeam($teamId)
             ->canonical()
             ->with([
                 'databaseConnection',
@@ -175,34 +178,34 @@ class SecurityAlertController extends Controller
          * STATISTICS
          */
         $totalAlerts =
-            SecurityAlert::query()->canonical()->count();
+            SecurityAlert::query()->forTeam($teamId)->canonical()->count();
 
         $openAlerts =
-            SecurityAlert::query()->canonical()->where(
+            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
                 'status',
                 'OPEN'
             )->count();
 
         $acknowledgedAlerts =
-            SecurityAlert::query()->canonical()->where(
+            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
                 'status',
                 'ACKNOWLEDGED'
             )->count();
 
         $investigatingAlerts =
-            SecurityAlert::query()->canonical()->where(
+            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
                 'status',
                 'INVESTIGATING'
             )->count();
 
         $resolvedAlerts =
-            SecurityAlert::query()->canonical()->where(
+            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
                 'status',
                 'RESOLVED'
             )->count();
 
         $criticalAlerts =
-            SecurityAlert::query()->canonical()->where(
+            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
                 'status',
                 'OPEN'
             )
@@ -213,7 +216,7 @@ class SecurityAlertController extends Controller
                 ->count();
 
         $highAlerts =
-            SecurityAlert::query()->canonical()->where(
+            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
                 'status',
                 'OPEN'
             )
@@ -281,12 +284,16 @@ class SecurityAlertController extends Controller
         Request $request,
         SecurityAlert $alert
     ): View {
+        $this->ensureAlertBelongsToCurrentTeam(
+            $request,
+            $alert
+        );
+
         $alert->load([
             'databaseConnection',
             'databaseActivity',
             'histories.user',
             'assignedTo',
-            'incident',
         ]);
 
         $teamMembers = collect();
@@ -314,9 +321,12 @@ class SecurityAlertController extends Controller
      * =========================================================
      */
     public function acknowledge(
+        Request $request,
         SecurityAlert $alert,
         SecurityAlertLifecycleService $lifecycle
     ): RedirectResponse {
+        $this->ensureAlertBelongsToCurrentTeam($request, $alert);
+
         try {
             $lifecycle->acknowledge($alert, auth()->id());
         } catch (Throwable $exception) {
@@ -339,6 +349,10 @@ class SecurityAlertController extends Controller
         SecurityAlert $alert,
         SecurityAlertLifecycleService $lifecycle
     ): RedirectResponse {
+        $this->ensureAlertBelongsToCurrentTeam(
+            $request,
+            $alert
+        );
         $validated = $request->validate([
             'investigation_note' => [
                 'nullable',
@@ -376,6 +390,10 @@ class SecurityAlertController extends Controller
         SecurityAlert $alert,
         SecurityAlertInvestigationService $investigation
     ): RedirectResponse {
+        $this->ensureAlertBelongsToCurrentTeam(
+            $request,
+            $alert
+        );
         $validated = $request->validate([
             'investigation_note' => [
                 'required',
@@ -413,6 +431,11 @@ class SecurityAlertController extends Controller
         SecurityAlert $alert,
         SecurityIncidentService $incidentService
     ): RedirectResponse {
+        $this->ensureAlertBelongsToCurrentTeam(
+            $request,
+            $alert
+        );
+
         try {
             $incident = $incidentService->createFromAlert(
                 $alert,
@@ -442,6 +465,10 @@ class SecurityAlertController extends Controller
         SecurityAlert $alert,
         SecurityAlertAssignmentService $assignment
     ): RedirectResponse {
+        $this->ensureAlertBelongsToCurrentTeam(
+            $request,
+            $alert
+        );
         $validated = $request->validate([
             'assigned_to_user_id' => [
                 'required',
@@ -502,6 +529,11 @@ class SecurityAlertController extends Controller
         SecurityAlert $alert,
         SecurityAlertAssignmentService $assignment
     ): RedirectResponse {
+        $this->ensureAlertBelongsToCurrentTeam(
+            $request,
+            $alert
+        );
+
         try {
             $assignment->unassign(
                 $alert,
@@ -530,6 +562,8 @@ class SecurityAlertController extends Controller
         SecurityAlert $alert,
         SecurityAlertLifecycleService $lifecycle
     ): RedirectResponse {
+        $this->ensureAlertBelongsToCurrentTeam($request, $alert);
+
         $validated = $request->validate([
             'resolution_note' => [
                 'required',
@@ -566,12 +600,14 @@ class SecurityAlertController extends Controller
      * =========================================================
      */
     public function reopen(
+        Request $request,
         SecurityAlert $alert,
         SecurityAlertLifecycleService $lifecycle
     ): RedirectResponse {
+        $this->ensureAlertBelongsToCurrentTeam($request, $alert);
         try {
 
-            $lifecycle->reopen($alert, auth()->id());
+            $lifecycle->reopen($alert, $request->user()->id);
 
             return back()->with(
                 'success',
@@ -585,5 +621,18 @@ class SecurityAlertController extends Controller
                     $this->safeExceptionDetail($e),
             ]);
         }
+    }
+
+    private function ensureAlertBelongsToCurrentTeam(
+        Request $request,
+        SecurityAlert $alert
+    ): void {
+        $teamId = $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $alert->team_id !== (int) $teamId,
+            404
+        );
     }
 }

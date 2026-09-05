@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\SecurityAlert;
 use App\Models\SecurityIncident;
 use App\Models\SecurityIncidentHistory;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -12,6 +13,8 @@ use Tests\TestCase;
 
 class SecurityIncidentReportTest extends TestCase
 {
+    private Team $team;
+
     use RefreshDatabase;
 
     private static int $sequence = 1;
@@ -22,6 +25,7 @@ class SecurityIncidentReportTest extends TestCase
 
         self::$sequence = 1;
         Carbon::setTestNow(Carbon::parse('2026-09-03 10:00:00'));
+        $this->team = Team::factory()->create();
     }
 
     protected function tearDown(): void
@@ -39,7 +43,7 @@ class SecurityIncidentReportTest extends TestCase
 
     public function test_report_defaults_to_last_thirty_days_and_exposes_breakdowns(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAsTeamUser();
 
         $this->createIncident([
             'severity' => 'CRITICAL',
@@ -81,7 +85,7 @@ class SecurityIncidentReportTest extends TestCase
 
     public function test_report_calculates_acknowledgement_sla_and_resolution_metrics(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAsTeamUser();
 
         $opened = now()->subDays(3);
 
@@ -118,7 +122,7 @@ class SecurityIncidentReportTest extends TestCase
 
     public function test_trend_counts_resolution_event_even_when_incident_opened_before_range(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAsTeamUser();
 
         $incident = $this->createIncident([
             'status' => 'RESOLVED',
@@ -153,7 +157,7 @@ class SecurityIncidentReportTest extends TestCase
 
     public function test_report_rejects_invalid_or_excessive_date_ranges(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAsTeamUser();
 
         $this->get(route('security-incidents.reports.index', [
             'start_date' => '2026-09-03',
@@ -173,8 +177,9 @@ class SecurityIncidentReportTest extends TestCase
 
     public function test_audit_report_displays_actor_activity_and_notes(): void
     {
-        $actor = User::factory()->create(['name' => 'SOC Reporter']);
-        $this->actingAs($actor);
+        $actor = $this->actingAsTeamUser([
+            'name' => 'SOC Reporter',
+        ]);
 
         $incident = $this->createIncident([
             'opened_at' => now()->subDay(),
@@ -199,11 +204,84 @@ class SecurityIncidentReportTest extends TestCase
             ->assertViewHas('auditActivities', fn ($activities): bool => $activities->total() === 1);
     }
 
-    private function createIncident(array $attributes = []): SecurityIncident
+    public function test_report_only_contains_current_team_incidents_trends_and_audit_activity(): void
     {
+        $this->actingAsTeamUser();
+
+        $otherTeam = Team::factory()->create();
+
+        $currentTeamIncident = $this->createIncident([
+            'severity' => 'HIGH',
+            'status' => 'RESOLVED',
+            'opened_at' => Carbon::parse('2026-09-02 08:00:00'),
+            'acknowledged_at' => Carbon::parse('2026-09-02 08:30:00'),
+            'resolved_at' => Carbon::parse('2026-09-02 09:00:00'),
+        ]);
+
+        $otherTeamIncident = $this->createIncident([
+            'severity' => 'CRITICAL',
+            'status' => 'RESOLVED',
+            'opened_at' => Carbon::parse('2026-09-02 10:00:00'),
+            'acknowledged_at' => Carbon::parse('2026-09-02 10:10:00'),
+            'resolved_at' => Carbon::parse('2026-09-02 10:20:00'),
+        ], $otherTeam);
+
+        SecurityIncidentHistory::query()->create([
+            'security_incident_id' => $currentTeamIncident->id,
+            'action' => 'RESOLVE',
+            'old_status' => 'CONTAINED',
+            'new_status' => 'RESOLVED',
+            'created_at' => Carbon::parse('2026-09-02 09:00:00'),
+            'updated_at' => Carbon::parse('2026-09-02 09:00:00'),
+        ]);
+
+        SecurityIncidentHistory::query()->create([
+            'security_incident_id' => $otherTeamIncident->id,
+            'action' => 'RESOLVE',
+            'old_status' => 'CONTAINED',
+            'new_status' => 'RESOLVED',
+            'created_at' => Carbon::parse('2026-09-02 10:20:00'),
+            'updated_at' => Carbon::parse('2026-09-02 10:20:00'),
+        ]);
+
+        $this->get(route('security-incidents.reports.index', [
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-09-03',
+        ]))
+            ->assertOk()
+            ->assertViewHas('report', function (array $report): bool {
+                $septemberSecond = collect($report['trends'])
+                    ->firstWhere('date', '2026-09-02');
+
+                return $report['summary']['total'] === 1
+                    && $report['severity_breakdown']['HIGH'] === 1
+                    && $report['severity_breakdown']['CRITICAL'] === 0
+                    && $septemberSecond !== null
+                    && $septemberSecond['opened'] === 1
+                    && $septemberSecond['resolved'] === 1
+                    && $report['audit_summary']['lifecycle'] === 1;
+            })
+            ->assertViewHas(
+                'auditActivities',
+                function ($activities) use ($currentTeamIncident): bool {
+                    return $activities->total() === 1
+                        && $activities->first()?->security_incident_id
+                            === $currentTeamIncident->id;
+                }
+            )
+            ->assertSee($currentTeamIncident->incident_number)
+            ->assertDontSee($otherTeamIncident->incident_number);
+    }
+
+    private function createIncident(
+        array $attributes = [],
+        ?Team $team = null
+    ): SecurityIncident {
+        $team ??= $this->team;
+
         $sequence = self::$sequence++;
 
-        $alert = SecurityAlert::query()->create([
+        $alert = new SecurityAlert([
             'alert_type' => 'VULNERABILITY',
             'severity' => 'HIGH',
             'title' => 'Report source alert '.$sequence,
@@ -216,14 +294,51 @@ class SecurityIncidentReportTest extends TestCase
             'last_seen_at' => now(),
         ]);
 
-        return SecurityIncident::query()->create(array_merge([
-            'incident_number' => sprintf('INC-REPORT-%04d', $sequence),
-            'security_alert_id' => $alert->id,
-            'title' => 'Reporting incident '.$sequence,
-            'description' => 'Reporting test incident.',
-            'severity' => 'HIGH',
-            'status' => 'OPEN',
-            'opened_at' => now(),
-        ], $attributes));
+        $alert->team_id = $team->id;
+        $alert->save();
+
+        $incident = new SecurityIncident(
+            array_merge([
+                'incident_number' => sprintf(
+                    'INC-REPORT-%04d',
+                    $sequence
+                ),
+                'security_alert_id' => $alert->id,
+                'title' => 'Reporting incident '.$sequence,
+                'description' => 'Reporting test incident.',
+                'severity' => 'HIGH',
+                'status' => 'OPEN',
+                'opened_at' => now(),
+            ], $attributes)
+        );
+
+        $incident->team_id = $team->id;
+        $incident->save();
+
+        return $incident;
+    }
+
+    private function actingAsTeamUser(
+        array $attributes = []
+    ): User {
+        $user = User::factory()->create($attributes);
+
+        $this->team->members()->attach(
+            $user->id,
+            [
+                'role' => 'admin',
+            ]
+        );
+
+        $user->forceFill([
+            'current_team_id' => $this->team->id,
+        ])->save();
+
+        $user->unsetRelation('currentTeam');
+        $user->refresh();
+
+        $this->actingAs($user);
+
+        return $user;
     }
 }

@@ -19,9 +19,12 @@ class DatabaseUserController extends Controller
     public function index(
         Request $request
     ) {
+        $teamId = (int) $request->user()->current_team_id;
         $query = DatabaseUser::query()
-            ->with(
-                'databaseConnection'
+            ->with('databaseConnection')
+            ->whereHas(
+                'databaseConnection',
+                fn ($connectionQuery) => $connectionQuery->forTeam($teamId)
             );
 
         /*
@@ -99,10 +102,10 @@ class DatabaseUserController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $connections =
-            DatabaseConnection::query()
-                ->orderBy('name')
-                ->get();
+        $connections = DatabaseConnection::query()
+            ->forTeam($teamId)
+            ->orderBy('name')
+            ->get();
 
         /*
         |--------------------------------------------------------------------------
@@ -110,26 +113,25 @@ class DatabaseUserController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $totalUsers =
-            DatabaseUser::count();
+        $userStatsQuery = DatabaseUser::query()
+            ->whereHas(
+                'databaseConnection',
+                fn ($connectionQuery) => $connectionQuery->forTeam($teamId)
+            );
 
-        $highRiskUsers =
-            DatabaseUser::where(
-                'risk_level',
-                'HIGH'
-            )->count();
+        $totalUsers = (clone $userStatsQuery)->count();
 
-        $mediumRiskUsers =
-            DatabaseUser::where(
-                'risk_level',
-                'MEDIUM'
-            )->count();
+        $highRiskUsers = (clone $userStatsQuery)
+            ->where('risk_level', 'HIGH')
+            ->count();
 
-        $superUsers =
-            DatabaseUser::where(
-                'is_superuser',
-                true
-            )->count();
+        $mediumRiskUsers = (clone $userStatsQuery)
+            ->where('risk_level', 'MEDIUM')
+            ->count();
+
+        $superUsers = (clone $userStatsQuery)
+            ->where('is_superuser', true)
+            ->count();
 
         return view(
             'database-users.index',
@@ -151,9 +153,15 @@ class DatabaseUserController extends Controller
     */
 
     public function scan(
+        Request $request,
         DatabaseConnection $databaseConnection,
         DatabaseConnectorService $connector
     ) {
+        $this->ensureConnectionBelongsToCurrentTeam(
+            $request,
+            $databaseConnection
+        );
+
         try {
             return $connector->withConnection(
                 $databaseConnection,
@@ -593,5 +601,18 @@ class DatabaseUserController extends Controller
 
             'reasons' => $reasons,
         ];
+    }
+
+    private function ensureConnectionBelongsToCurrentTeam(
+        Request $request,
+        DatabaseConnection $databaseConnection
+    ): void {
+        $teamId = $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $databaseConnection->team_id !== (int) $teamId,
+            404
+        );
     }
 }

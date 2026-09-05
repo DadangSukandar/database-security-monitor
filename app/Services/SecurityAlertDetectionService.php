@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\DatabaseActivity;
+use App\Models\DatabaseConnection;
 use App\Models\SecurityAlert;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 class SecurityAlertDetectionService
 {
@@ -37,11 +39,9 @@ class SecurityAlertDetectionService
                 'rule' => 'FAILED_QUERY',
                 'severity' => 'MEDIUM',
                 'title' => 'Database query gagal',
-                'description' =>
-                    'Terdeteksi query database yang gagal dijalankan.',
+                'description' => 'Terdeteksi query database yang gagal dijalankan.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -57,11 +57,9 @@ class SecurityAlertDetectionService
                 'rule' => 'DELETE_OPERATION',
                 'severity' => 'HIGH',
                 'title' => 'DELETE operation terdeteksi',
-                'description' =>
-                    'User menjalankan operasi DELETE pada database.',
+                'description' => 'User menjalankan operasi DELETE pada database.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -77,11 +75,9 @@ class SecurityAlertDetectionService
                 'rule' => 'UPDATE_OPERATION',
                 'severity' => 'MEDIUM',
                 'title' => 'UPDATE operation terdeteksi',
-                'description' =>
-                    'User menjalankan operasi UPDATE pada database.',
+                'description' => 'User menjalankan operasi UPDATE pada database.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -98,11 +94,9 @@ class SecurityAlertDetectionService
                 'rule' => 'DANGEROUS_DDL',
                 'severity' => 'CRITICAL',
                 'title' => 'Dangerous DDL operation',
-                'description' =>
-                    'Terdeteksi operasi DROP yang berpotensi merusak database.',
+                'description' => 'Terdeteksi operasi DROP yang berpotensi merusak database.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -117,11 +111,9 @@ class SecurityAlertDetectionService
                 'rule' => 'ALTER_TABLE',
                 'severity' => 'HIGH',
                 'title' => 'ALTER TABLE terdeteksi',
-                'description' =>
-                    'User melakukan perubahan struktur database.',
+                'description' => 'User melakukan perubahan struktur database.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -136,8 +128,7 @@ class SecurityAlertDetectionService
                 'rule' => 'GRANT_PRIVILEGE',
                 'severity' => 'HIGH',
                 'title' => 'Privilege diberikan',
-                'description' =>
-                    'Terdeteksi pemberian privilege database.',
+                'description' => 'Terdeteksi pemberian privilege database.',
             ];
         }
 
@@ -148,11 +139,9 @@ class SecurityAlertDetectionService
                 'rule' => 'REVOKE_PRIVILEGE',
                 'severity' => 'HIGH',
                 'title' => 'Privilege dicabut',
-                'description' =>
-                    'Terdeteksi perubahan privilege database.',
+                'description' => 'Terdeteksi perubahan privilege database.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -182,11 +171,9 @@ class SecurityAlertDetectionService
                 'rule' => 'SENSITIVE_TABLE_ACCESS',
                 'severity' => 'HIGH',
                 'title' => 'Sensitive table diakses',
-                'description' =>
-                    'User mengakses tabel yang dikategorikan sebagai sensitive.',
+                'description' => 'User mengakses tabel yang dikategorikan sebagai sensitive.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -202,11 +189,9 @@ class SecurityAlertDetectionService
                 'rule' => 'LONG_RUNNING_QUERY',
                 'severity' => 'MEDIUM',
                 'title' => 'Long running query',
-                'description' =>
-                    'Query membutuhkan waktu eksekusi lebih dari 5 detik.',
+                'description' => 'Query membutuhkan waktu eksekusi lebih dari 5 detik.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -221,15 +206,12 @@ class SecurityAlertDetectionService
                 'rule' => 'SELECT_STAR',
                 'severity' => 'LOW',
                 'title' => 'SELECT * terdeteksi',
-                'description' =>
-                    'Query mengambil seluruh kolom dari tabel.',
+                'description' => 'Query mengambil seluruh kolom dari tabel.',
             ];
         }
 
-
         return $alerts;
     }
-
 
     public function scan(DatabaseActivity $activity): int
     {
@@ -237,51 +219,60 @@ class SecurityAlertDetectionService
 
         foreach ($alerts as $alert) {
 
-            SecurityAlert::create([
-                'database_connection_id' =>
-                    $activity->database_connection_id,
+            $this->createOwnedAlert($activity, [
+                'database_connection_id' => $activity->database_connection_id,
 
-                'database_activity_id' =>
-                    $activity->id,
+                'database_activity_id' => $activity->id,
 
-                'database_name' =>
-                    $activity->database_name,
+                'database_name' => $activity->database_name,
 
-                'username' =>
-                    $activity->username,
+                'username' => $activity->username,
 
-                'client_ip' =>
-                    $activity->client_ip,
+                'client_ip' => $activity->client_ip,
 
-                'table_name' =>
-                    $activity->table_name,
+                'table_name' => $activity->table_name,
 
-                'action' =>
-                    $activity->action,
+                'action' => $activity->action,
 
-                'query' =>
-                    $activity->query,
+                'query' => $activity->query,
 
-                'rule' =>
-                    $alert['rule'],
+                'rule' => $alert['rule'],
 
-                'title' =>
-                    $alert['title'],
+                'title' => $alert['title'],
 
-                'description' =>
-                    $alert['description'],
+                'description' => $alert['description'],
 
-                'severity' =>
-                    $alert['severity'],
+                'severity' => $alert['severity'],
 
-                'status' =>
-                    'OPEN',
+                'status' => 'OPEN',
 
-                'detected_at' =>
-                    now(),
+                'detected_at' => now(),
             ]);
         }
 
         return count($alerts);
+    }
+
+    private function createOwnedAlert(
+        DatabaseActivity $activity,
+        array $attributes
+    ): SecurityAlert {
+        $teamId = DatabaseConnection::query()
+            ->whereKey($activity->database_connection_id)
+            ->value('team_id');
+
+        if ($teamId === null) {
+            throw new InvalidArgumentException(
+                'Cannot create security alert without trusted team ownership.'
+            );
+        }
+
+        $alert = new SecurityAlert($attributes);
+
+        $alert->team_id = (int) $teamId;
+
+        $alert->save();
+
+        return $alert;
     }
 }
