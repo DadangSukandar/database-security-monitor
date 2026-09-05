@@ -21,17 +21,20 @@ class SecurityDashboardController extends Controller
     public function index(Request $request): View
     {
         $teamId = (int) $request->user()->current_team_id;
+        $assessmentQuery = VulnerabilityAssessment::query()
+            ->forTeam($teamId);
         /*
          * =====================================================
          * LATEST ASSESSMENT
          * =====================================================
          */
 
-        $latestAssessment = VulnerabilityAssessment::query()
+        $latestAssessment = (clone $assessmentQuery)
             ->latest('id')
             ->first();
 
-        $totalAssessments = VulnerabilityAssessment::count();
+        $totalAssessments = (clone $assessmentQuery)
+            ->count();
 
         /*
          * =====================================================
@@ -63,7 +66,7 @@ class SecurityDashboardController extends Controller
          * =====================================================
          */
 
-        $assessmentHistory = VulnerabilityAssessment::query()
+        $assessmentHistory = (clone $assessmentQuery)
             ->latest('id')
             ->limit(10)
             ->get();
@@ -122,6 +125,7 @@ class SecurityDashboardController extends Controller
              */
 
             $findingQuery = VulnerabilityFinding::query()
+                ->forTeam($teamId)
                 ->where(
                     'vulnerability_assessment_id',
                     $latestAssessment->id
@@ -573,7 +577,8 @@ class SecurityDashboardController extends Controller
         * =====================================================
         */
 
-        $incidentQuery = SecurityIncident::query();
+        $incidentQuery = SecurityIncident::query()
+            > forTeam($teamId);
 
         $totalIncidents = (clone $incidentQuery)->count();
 
