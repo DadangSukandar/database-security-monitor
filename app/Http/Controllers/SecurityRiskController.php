@@ -16,6 +16,14 @@ class SecurityRiskController extends Controller
      */
     public function index(Request $request)
     {
+
+        $teamId = (int) $request->user()->current_team_id;
+
+        $teamFindingQuery = SecurityFinding::query()
+            ->forTeam($teamId);
+
+        $teamAssessmentQuery = VulnerabilityAssessment::query()
+            ->forTeam($teamId);
         /*
          * =====================================================
          * FILTER PERIOD
@@ -24,7 +32,7 @@ class SecurityRiskController extends Controller
 
         $period = $request->input('period', '30');
 
-        if (!in_array($period, ['7', '30', '90', '365'])) {
+        if (! in_array($period, ['7', '30', '90', '365'])) {
             $period = '30';
         }
 
@@ -34,15 +42,15 @@ class SecurityRiskController extends Controller
 
         $endDate = now()->endOfDay();
 
-
         /*
          * =====================================================
          * TOTAL FINDINGS
          * =====================================================
          */
 
-        $totalFindings = SecurityFinding::count();
-
+        $totalFindings =
+            (clone $teamFindingQuery)
+                ->count();
 
         /*
          * =====================================================
@@ -55,19 +63,19 @@ class SecurityRiskController extends Controller
          * =====================================================
          */
 
-        $resolvedFindings = SecurityFinding::query()
-            ->where(function ($query) {
-
-                $query
-                    ->where('resolved', true)
-                    ->orWhereRaw(
-                        'UPPER(COALESCE(status, \'\')) = ?',
-                        ['RESOLVED']
-                    );
-
-            })
-            ->count();
-
+        $resolvedFindings =
+            (clone $teamFindingQuery)
+                ->where(function ($query) {
+                    $query
+                        ->whereRaw(
+                            'UPPER(COALESCE(status, \'\')) = ?',
+                            ['RESOLVED']
+                        )
+                        ->orWhereNotNull(
+                            'resolved_at'
+                        );
+                })
+                ->count();
 
         /*
          * =====================================================
@@ -75,18 +83,13 @@ class SecurityRiskController extends Controller
          * =====================================================
          */
 
-        $ignoredFindings = SecurityFinding::query()
-            ->where(function ($query) {
-
-                $query
-                    ->whereRaw(
-                        'UPPER(COALESCE(status, \'\')) = ?',
-                        ['IGNORED']
-                    );
-
-            })
-            ->count();
-
+        $ignoredFindings =
+            (clone $teamFindingQuery)
+                ->whereRaw(
+                    'UPPER(COALESCE(status, \'\')) = ?',
+                    ['IGNORED']
+                )
+                ->count();
 
         /*
          * =====================================================
@@ -102,61 +105,32 @@ class SecurityRiskController extends Controller
          * =====================================================
          */
 
-        $activeQuery = SecurityFinding::query()
-            ->where(function ($query) {
-
-                $query
-                    ->whereRaw(
-                        'UPPER(COALESCE(status, \'\')) IN (?, ?)',
-                        [
-                            'OPEN',
-                            'ACTIVE'
-                        ]
-                    )
-                    ->orWhere(function ($subQuery) {
-
-                        $subQuery
-                            ->where(function ($q) {
-
-                                $q
-                                    ->whereNull('status')
-                                    ->orWhere(
-                                        'status',
-                                        ''
-                                    );
-
-                            })
-                            ->where(function ($q) {
-
-                                $q
-                                    ->where(
-                                        'resolved',
-                                        false
-                                    )
-                                    ->orWhereNull(
-                                        'resolved'
-                                    );
-
-                            });
-
-                    });
-
-            })
-            ->where(function ($query) {
-
-                $query
-                    ->where('resolved', false)
-                    ->orWhereNull('resolved')
-                    ->orWhereRaw(
-                        'UPPER(COALESCE(status, \'\')) IN (?, ?)',
-                        [
-                            'OPEN',
-                            'ACTIVE'
-                        ]
-                    );
-
-            });
-
+        $activeQuery =
+            (clone $teamFindingQuery)
+                ->where(function ($query) {
+                    $query
+                        ->whereRaw(
+                            'UPPER(COALESCE(status, \'\')) IN (?, ?)',
+                            [
+                                'OPEN',
+                                'ACTIVE',
+                            ]
+                        )
+                        ->orWhere(function ($subQuery) {
+                            $subQuery
+                                ->where(function ($statusQuery) {
+                                    $statusQuery
+                                        ->whereNull('status')
+                                        ->orWhere(
+                                            'status',
+                                            ''
+                                        );
+                                })
+                                ->whereNull(
+                                    'resolved_at'
+                                );
+                        });
+                });
 
         /*
          * =====================================================
@@ -166,7 +140,6 @@ class SecurityRiskController extends Controller
 
         $openFindings = (clone $activeQuery)
             ->count();
-
 
         /*
          * =====================================================
@@ -181,7 +154,6 @@ class SecurityRiskController extends Controller
             )
             ->count();
 
-
         /*
          * =====================================================
          * ACTIVE HIGH
@@ -194,7 +166,6 @@ class SecurityRiskController extends Controller
                 ['HIGH']
             )
             ->count();
-
 
         /*
          * =====================================================
@@ -209,7 +180,6 @@ class SecurityRiskController extends Controller
             )
             ->count();
 
-
         /*
          * =====================================================
          * ACTIVE LOW
@@ -222,7 +192,6 @@ class SecurityRiskController extends Controller
                 ['LOW']
             )
             ->count();
-
 
         /*
          * =====================================================
@@ -243,7 +212,6 @@ class SecurityRiskController extends Controller
             ($openMedium * 10) +
             ($openLow * 3);
 
-
         /*
          * =====================================================
          * SECURITY SCORE
@@ -257,7 +225,6 @@ class SecurityRiskController extends Controller
                 100 - $riskPoints
             )
         );
-
 
         /*
          * =====================================================
@@ -301,7 +268,6 @@ class SecurityRiskController extends Controller
                 'Good Security Posture';
         }
 
-
         /*
          * =====================================================
          * RISK STATUS
@@ -334,7 +300,6 @@ class SecurityRiskController extends Controller
                 'Critical risk exposure';
         }
 
-
         /*
          * =====================================================
          * LATEST ASSESSMENT
@@ -342,12 +307,10 @@ class SecurityRiskController extends Controller
          */
 
         $latestAssessment =
-            VulnerabilityAssessment::with(
-                'databaseConnection'
-            )
+            (clone $teamAssessmentQuery)
+                ->with('databaseConnection')
                 ->latest('scanned_at')
                 ->first();
-
 
         /*
          * =====================================================
@@ -372,7 +335,6 @@ class SecurityRiskController extends Controller
                 ->limit(10)
                 ->get();
 
-
         /*
          * =====================================================
          * DATABASE RISK
@@ -394,7 +356,6 @@ class SecurityRiskController extends Controller
                 ->limit(10)
                 ->get();
 
-
         /*
          * =====================================================
          * RISK CATEGORIES
@@ -404,7 +365,7 @@ class SecurityRiskController extends Controller
          */
 
         $categoryDistribution =
-            SecurityFinding::query()
+            (clone $teamFindingQuery)
                 ->select(
                     'category',
                     DB::raw(
@@ -415,7 +376,6 @@ class SecurityRiskController extends Controller
                 ->orderByDesc('total')
                 ->get();
 
-
         /*
          * =====================================================
          * RECENT FINDINGS
@@ -423,11 +383,10 @@ class SecurityRiskController extends Controller
          */
 
         $recentFindings =
-            SecurityFinding::query()
+            (clone $teamFindingQuery)
                 ->latest('created_at')
                 ->limit(15)
                 ->get();
-
 
         /*
          * =====================================================
@@ -436,12 +395,12 @@ class SecurityRiskController extends Controller
          */
 
         $riskTrend =
-            VulnerabilityAssessment::query()
+            (clone $teamAssessmentQuery)
                 ->whereBetween(
                     'scanned_at',
                     [
                         $startDate,
-                        $endDate
+                        $endDate,
                     ]
                 )
                 ->orderBy('scanned_at')
@@ -454,7 +413,6 @@ class SecurityRiskController extends Controller
                     'low_count',
                     'scanned_at',
                 ]);
-
 
         /*
          * =====================================================
@@ -474,7 +432,6 @@ class SecurityRiskController extends Controller
 
         $chartLow = [];
 
-
         foreach ($riskTrend as $trend) {
 
             $chartLabels[] =
@@ -483,37 +440,31 @@ class SecurityRiskController extends Controller
                         ->format('d M Y')
                     : '-';
 
-
             $chartScores[] =
                 (int) (
                     $trend->score ?? 0
                 );
-
 
             $chartCritical[] =
                 (int) (
                     $trend->critical_count ?? 0
                 );
 
-
             $chartHigh[] =
                 (int) (
                     $trend->high_count ?? 0
                 );
-
 
             $chartMedium[] =
                 (int) (
                     $trend->medium_count ?? 0
                 );
 
-
             $chartLow[] =
                 (int) (
                     $trend->low_count ?? 0
                 );
         }
-
 
         /*
          * =====================================================
@@ -524,12 +475,10 @@ class SecurityRiskController extends Controller
         $assessmentCount =
             VulnerabilityAssessment::count();
 
-
         $averageScore =
             VulnerabilityAssessment::query()
                 ->whereNotNull('score')
                 ->avg('score');
-
 
         $averageScore =
             $averageScore !== null
@@ -538,7 +487,6 @@ class SecurityRiskController extends Controller
                     1
                 )
                 : 0;
-
 
         /*
          * =====================================================
@@ -550,12 +498,10 @@ class SecurityRiskController extends Controller
             VulnerabilityAssessment::query()
                 ->max('score');
 
-
         $bestScore =
             $bestScore !== null
                 ? (int) $bestScore
                 : 0;
-
 
         /*
          * =====================================================
@@ -567,12 +513,10 @@ class SecurityRiskController extends Controller
             VulnerabilityAssessment::query()
                 ->min('score');
 
-
         $worstScore =
             $worstScore !== null
                 ? (int) $worstScore
                 : 0;
-
 
         /*
          * =====================================================
