@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\VulnerabilityAssessment;
+use App\Services\DatabaseConnectorService;
 use Illuminate\Http\Request;
-use Throwable;
 
 class SecurityReportController extends Controller
 {
@@ -13,7 +13,12 @@ class SecurityReportController extends Controller
      */
     public function index(Request $request)
     {
-        $query = VulnerabilityAssessment::query()
+        $teamId = (int) $request->user()->current_team_id;
+
+        $teamAssessmentQuery = VulnerabilityAssessment::query()
+            ->forTeam($teamId);
+
+        $query = (clone $teamAssessmentQuery)
             ->with('databaseConnection');
 
         /*
@@ -30,23 +35,21 @@ class SecurityReportController extends Controller
                 $q->where(
                     'database_name',
                     'like',
-                    '%' . $search . '%'
+                    '%'.$search.'%'
                 )
+                    ->orWhereHas(
+                        'databaseConnection',
+                        function ($connectionQuery) use ($search) {
 
-                ->orWhereHas(
-                    'databaseConnection',
-                    function ($connectionQuery) use ($search) {
-
-                        $connectionQuery->where(
-                            'name',
-                            'like',
-                            '%' . $search . '%'
-                        );
-                    }
-                );
+                            $connectionQuery->where(
+                                'name',
+                                'like',
+                                '%'.$search.'%'
+                            );
+                        }
+                    );
             });
         }
-
 
         /*
         * Status filter
@@ -73,7 +76,6 @@ class SecurityReportController extends Controller
             );
         }
 
-
         /*
         * Score filter
         */
@@ -94,7 +96,6 @@ class SecurityReportController extends Controller
 
                 break;
 
-
             case 'MEDIUM':
 
                 $query->whereBetween(
@@ -104,7 +105,6 @@ class SecurityReportController extends Controller
 
                 break;
 
-
             case 'HIGH':
 
                 $query->whereBetween(
@@ -113,7 +113,6 @@ class SecurityReportController extends Controller
                 );
 
                 break;
-
 
             case 'CRITICAL':
 
@@ -126,7 +125,6 @@ class SecurityReportController extends Controller
                 break;
         }
 
-
         /*
         * Pagination.
         */
@@ -135,37 +133,28 @@ class SecurityReportController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-
         /*
         * Statistik keseluruhan.
         */
         $totalAssessments =
-            VulnerabilityAssessment::count();
-
+            (clone $teamAssessmentQuery)
+                ->count();
 
         $critical =
-            VulnerabilityAssessment::sum(
-                'critical_count'
-            );
-
+            (clone $teamAssessmentQuery)
+                ->sum('critical_count');
 
         $high =
-            VulnerabilityAssessment::sum(
-                'high_count'
-            );
-
+            (clone $teamAssessmentQuery)
+                ->sum('high_count');
 
         $medium =
-            VulnerabilityAssessment::sum(
-                'medium_count'
-            );
-
+            (clone $teamAssessmentQuery)
+                ->sum('medium_count');
 
         $low =
-            VulnerabilityAssessment::sum(
-                'low_count'
-            );
-
+            (clone $teamAssessmentQuery)
+                ->sum('low_count');
 
         $totalFindings =
             $critical +
@@ -173,53 +162,47 @@ class SecurityReportController extends Controller
             $medium +
             $low;
 
-
         /*
         * Assessment terakhir.
         */
         $latestAssessment =
-            VulnerabilityAssessment::query()
+            (clone $teamAssessmentQuery)
                 ->with('databaseConnection')
                 ->latest('scanned_at')
                 ->first();
-
 
         /*
         * Average score.
         */
         $averageScore =
-            VulnerabilityAssessment::query()
+            (clone $teamAssessmentQuery)
                 ->whereNotNull('score')
                 ->avg('score');
-
 
         $averageScore =
             $averageScore !== null
                 ? round($averageScore, 1)
                 : 0;
 
-
         /*
         * Best assessment.
         */
         $bestAssessment =
-            VulnerabilityAssessment::query()
+            (clone $teamAssessmentQuery)
                 ->with('databaseConnection')
                 ->whereNotNull('score')
                 ->orderByDesc('score')
                 ->first();
 
-
         /*
         * Worst assessment.
         */
         $worstAssessment =
-            VulnerabilityAssessment::query()
+            (clone $teamAssessmentQuery)
                 ->with('databaseConnection')
                 ->whereNotNull('score')
                 ->orderBy('score')
                 ->first();
-
 
         return view(
             'security-reports.index',
@@ -242,13 +225,17 @@ class SecurityReportController extends Controller
         );
     }
 
-
     /**
      * Detail Security Report.
      */
     public function show(
+        Request $request,
         VulnerabilityAssessment $assessment
     ) {
+        $this->ensureAssessmentBelongsToCurrentTeam(
+            $request,
+            $assessment
+        );
 
         /*
          * Load relationship.
@@ -258,13 +245,11 @@ class SecurityReportController extends Controller
             'findings',
         ]);
 
-
         /*
          * Hitung total findings.
          */
         $totalFindings =
             $assessment->findings->count();
-
 
         /*
          * Hitung severity jika diperlukan
@@ -275,24 +260,20 @@ class SecurityReportController extends Controller
                 ->where('severity', 'CRITICAL')
                 ->count();
 
-
         $high =
             $assessment->findings
                 ->where('severity', 'HIGH')
                 ->count();
-
 
         $medium =
             $assessment->findings
                 ->where('severity', 'MEDIUM')
                 ->count();
 
-
         $low =
             $assessment->findings
                 ->where('severity', 'LOW')
                 ->count();
-
 
         return view(
             'security-reports.show',
@@ -307,13 +288,17 @@ class SecurityReportController extends Controller
         );
     }
 
-
     /**
      * Print Security Report.
      */
     public function print(
+        Request $request,
         VulnerabilityAssessment $assessment
     ) {
+        $this->ensureAssessmentBelongsToCurrentTeam(
+            $request,
+            $assessment
+        );
 
         /*
          * Load seluruh data yang diperlukan
@@ -324,37 +309,31 @@ class SecurityReportController extends Controller
             'findings',
         ]);
 
-
         /*
          * Statistik findings.
          */
         $totalFindings =
             $assessment->findings->count();
 
-
         $critical =
             $assessment->findings
                 ->where('severity', 'CRITICAL')
                 ->count();
-
 
         $high =
             $assessment->findings
                 ->where('severity', 'HIGH')
                 ->count();
 
-
         $medium =
             $assessment->findings
                 ->where('severity', 'MEDIUM')
                 ->count();
 
-
         $low =
             $assessment->findings
                 ->where('severity', 'LOW')
                 ->count();
-
 
         return view(
             'security-reports.print',
@@ -380,8 +359,7 @@ class SecurityReportController extends Controller
             return [
                 'level' => 'LOW',
                 'label' => 'Low Risk',
-                'description' =>
-                    'Database memiliki tingkat keamanan yang baik dan hanya membutuhkan perbaikan minor.',
+                'description' => 'Database memiliki tingkat keamanan yang baik dan hanya membutuhkan perbaikan minor.',
             ];
         }
 
@@ -389,8 +367,7 @@ class SecurityReportController extends Controller
             return [
                 'level' => 'MEDIUM',
                 'label' => 'Medium Risk',
-                'description' =>
-                    'Ditemukan beberapa kelemahan keamanan yang sebaiknya segera diperbaiki.',
+                'description' => 'Ditemukan beberapa kelemahan keamanan yang sebaiknya segera diperbaiki.',
             ];
         }
 
@@ -398,37 +375,38 @@ class SecurityReportController extends Controller
             return [
                 'level' => 'HIGH',
                 'label' => 'High Risk',
-                'description' =>
-                    'Ditemukan kelemahan keamanan yang cukup serius dan membutuhkan tindakan perbaikan.',
+                'description' => 'Ditemukan kelemahan keamanan yang cukup serius dan membutuhkan tindakan perbaikan.',
             ];
         }
 
         return [
             'level' => 'CRITICAL',
             'label' => 'Critical Risk',
-            'description' =>
-                'Database memiliki risiko keamanan tinggi dan membutuhkan tindakan perbaikan segera.',
+            'description' => 'Database memiliki risiko keamanan tinggi dan membutuhkan tindakan perbaikan segera.',
         ];
     }
 
     public function rerun(
+        Request $request,
         VulnerabilityAssessment $assessment,
         VulnerabilityAssessmentController $vulnerabilityAssessmentController
     ) {
+        $this->ensureAssessmentBelongsToCurrentTeam(
+            $request,
+            $assessment
+        );
         /*
         * Pastikan assessment mempunyai
         * database connection.
         */
         $assessment->load('databaseConnection');
 
-        if (!$assessment->databaseConnection) {
+        if (! $assessment->databaseConnection) {
 
             return back()->withErrors([
-                'rerun' =>
-                    'Database connection untuk assessment ini tidak ditemukan.'
+                'rerun' => 'Database connection untuk assessment ini tidak ditemukan.',
             ]);
         }
-
 
         /*
         * Jalankan kembali scan menggunakan
@@ -438,42 +416,51 @@ class SecurityReportController extends Controller
         * method scan() dapat menggunakan
         * database_connection_id yang sama.
         */
-        $request = Request::create(
+        $scanRequest = Request::create(
             route('vulnerability-assessments.scan'),
             'POST',
             [
-                'database_connection_id' =>
-                    $assessment->database_connection_id,
+                'database_connection_id' => $assessment->database_connection_id,
             ]
         );
-
 
         /*
         * Salin session user saat ini.
         */
-        $request->setLaravelSession(
-            request()->session()
+        $scanRequest->setLaravelSession(
+            $request->session()
         );
 
+        $scanRequest->setUserResolver(
+            fn () => $request->user()
+        );
 
         /*
         * Jalankan scan.
         */
         return $vulnerabilityAssessmentController->scan(
-            $request,
-            app(\App\Services\DatabaseConnectorService::class)
+            $scanRequest,
+            app(DatabaseConnectorService::class)
         );
     }
 
     public function comparison(
+        Request $request,
         VulnerabilityAssessment $assessment
     ) {
+        $this->ensureAssessmentBelongsToCurrentTeam(
+            $request,
+            $assessment
+        );
+
+        $teamId = (int) $request->user()->current_team_id;
         /*
         * Cari assessment sebelumnya
         * untuk database connection yang sama.
         */
         $previousAssessment =
             VulnerabilityAssessment::query()
+                ->forTeam($teamId)
                 ->where(
                     'database_connection_id',
                     $assessment->database_connection_id
@@ -486,12 +473,11 @@ class SecurityReportController extends Controller
                 ->latest('id')
                 ->first();
 
-
         /*
         * Jika belum pernah ada assessment
         * sebelumnya.
         */
-        if (!$previousAssessment) {
+        if (! $previousAssessment) {
 
             return view(
                 'security-reports.comparison',
@@ -502,14 +488,12 @@ class SecurityReportController extends Controller
             );
         }
 
-
         /*
         * Hitung perubahan score.
         */
         $scoreChange =
             $assessment->score -
             $previousAssessment->score;
-
 
         /*
         * Hitung perubahan finding.
@@ -530,7 +514,6 @@ class SecurityReportController extends Controller
             $assessment->low_count -
             $previousAssessment->low_count;
 
-
         /*
         * Total findings.
         */
@@ -540,18 +523,15 @@ class SecurityReportController extends Controller
             $previousAssessment->medium_count +
             $previousAssessment->low_count;
 
-
         $currentTotal =
             $assessment->critical_count +
             $assessment->high_count +
             $assessment->medium_count +
             $assessment->low_count;
 
-
         $totalChange =
             $currentTotal -
             $previousTotal;
-
 
         return view(
             'security-reports.comparison',
@@ -567,6 +547,22 @@ class SecurityReportController extends Controller
                 'currentTotal',
                 'totalChange'
             )
+        );
+    }
+
+    private function ensureAssessmentBelongsToCurrentTeam(
+        Request $request,
+        VulnerabilityAssessment $assessment
+    ): void {
+        $teamId = $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            ! VulnerabilityAssessment::query()
+                ->forTeam((int) $teamId)
+                ->whereKey($assessment->id)
+                ->exists(),
+            404
         );
     }
 }
