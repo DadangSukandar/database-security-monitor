@@ -562,7 +562,14 @@ class SecurityAuditScanner
         array &$result
     ): void {
 
-        SecurityFinding::create([
+        if ($connection->team_id === null) {
+            throw new \InvalidArgumentException(
+                'Cannot create security finding without trusted team ownership.'
+            );
+        }
+
+        $securityFinding = new SecurityFinding([
+
             'database_connection_id' => $connection->id,
 
             'database_name' => $databaseName,
@@ -589,6 +596,11 @@ class SecurityAuditScanner
 
             'detected_at' => now(),
         ]);
+
+        $securityFinding->team_id =
+            (int) $connection->team_id;
+
+        $securityFinding->save();
 
         $key = strtolower($severity);
 

@@ -3,17 +3,37 @@
 use App\Models\SecurityFinding;
 use App\Models\User;
 
-it('searches findings using columns from the security findings table', function () {
-    $this->actingAs(User::factory()->create());
+function createRegressionSecurityFinding(
+    User $user,
+    array $attributes
+): SecurityFinding {
+    $finding = new SecurityFinding(
+        $attributes
+    );
 
-    SecurityFinding::query()->create([
-        'finding_type' => 'PUBLIC_DATABASE_ACCOUNT',
-        'category' => 'ACCESS_CONTROL',
-        'severity' => 'HIGH',
-        'title' => 'Public database account',
-        'object_name' => 'production_users',
-        'status' => 'OPEN',
-    ]);
+    $finding->team_id =
+        (int) $user->current_team_id;
+
+    $finding->save();
+
+    return $finding;
+}
+
+it('searches findings using columns from the security findings table', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user);
+
+    createRegressionSecurityFinding(
+        $user,
+        [
+            'finding_type' => 'PUBLIC_DATABASE_ACCOUNT',
+            'category' => 'ACCESS_CONTROL',
+            'severity' => 'HIGH',
+            'title' => 'Public database account',
+            'object_name' => 'production_users',
+            'status' => 'OPEN',
+        ]);
 
     $this->get(route('security-findings.index', ['search' => 'PUBLIC_DATABASE_ACCOUNT']))
         ->assertOk()
@@ -25,15 +45,20 @@ it('searches findings using columns from the security findings table', function 
 });
 
 it('loads and displays finding history without swallowing relationship errors', function () {
-    $this->actingAs(User::factory()->create());
+    $user = User::factory()->create();
 
-    $finding = SecurityFinding::query()->create([
-        'finding_type' => 'WEAK_PRIVILEGE',
-        'category' => 'PRIVILEGE',
-        'severity' => 'MEDIUM',
-        'title' => 'Weak database privilege',
-        'status' => 'OPEN',
-    ]);
+    $this->actingAs($user);
+
+    $finding = createRegressionSecurityFinding(
+        $user,
+        [
+            'finding_type' => 'WEAK_PRIVILEGE',
+            'category' => 'PRIVILEGE',
+            'severity' => 'MEDIUM',
+            'title' => 'Weak database privilege',
+            'status' => 'OPEN',
+        ]
+    );
 
     $this->post(route('security-findings.resolve', $finding))->assertRedirect();
 

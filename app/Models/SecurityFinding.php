@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -34,6 +35,26 @@ class SecurityFinding extends Model
     public function databaseConnection(): BelongsTo
     {
         return $this->belongsTo(DatabaseConnection::class);
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(
+            Team::class
+        );
+    }
+
+    /**
+     * @param  Builder<SecurityFinding>  $query
+     */
+    public function scopeForTeam(
+        Builder $query,
+        int $teamId
+    ): Builder {
+        return $query->where(
+            'team_id',
+            $teamId
+        );
     }
 
     /** @return HasMany<SecurityFindingHistory, $this> */

@@ -25,13 +25,18 @@ class SecurityFindingController extends Controller
             'database' => ['nullable', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $teamId = (int) $request->user()->current_team_id;
+
+        $teamFindingQuery = SecurityFinding::query()
+            ->forTeam($teamId);
         /*
          * =====================================================
          * BASE QUERY
          * =====================================================
          */
 
-        $query = SecurityFinding::query();
+        $query = clone $teamFindingQuery;
 
         /*
          * =====================================================
@@ -213,7 +218,8 @@ class SecurityFindingController extends Controller
          */
 
         $totalFindings =
-            SecurityFinding::count();
+            (clone $teamFindingQuery)
+                ->count();
 
         /*
          * =====================================================
@@ -222,22 +228,28 @@ class SecurityFindingController extends Controller
          */
 
         $openFindings =
-            SecurityFinding::where(
-                'status',
-                'OPEN'
-            )->count();
+            (clone $teamFindingQuery)
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
 
         $resolvedFindings =
-            SecurityFinding::where(
-                'status',
-                'RESOLVED'
-            )->count();
+            (clone $teamFindingQuery)
+                ->where(
+                    'status',
+                    'RESOLVED'
+                )
+                ->count();
 
         $ignoredFindings =
-            SecurityFinding::where(
-                'status',
-                'IGNORED'
-            )->count();
+            (clone $teamFindingQuery)
+                ->where(
+                    'status',
+                    'IGNORED'
+                )
+                ->count();
 
         /*
          * =====================================================
@@ -249,10 +261,11 @@ class SecurityFindingController extends Controller
          */
 
         $critical =
-            SecurityFinding::where(
-                'status',
-                'OPEN'
-            )
+            (clone $teamFindingQuery)
+                ->where(
+                    'status',
+                    'OPEN'
+                )
                 ->where(
                     'severity',
                     'CRITICAL'
@@ -260,10 +273,11 @@ class SecurityFindingController extends Controller
                 ->count();
 
         $high =
-            SecurityFinding::where(
-                'status',
-                'OPEN'
-            )
+            (clone $teamFindingQuery)
+                ->where(
+                    'status',
+                    'OPEN'
+                )
                 ->where(
                     'severity',
                     'HIGH'
@@ -271,10 +285,12 @@ class SecurityFindingController extends Controller
                 ->count();
 
         $medium =
-            SecurityFinding::where(
-                'status',
-                'OPEN'
-            )
+            (clone $teamFindingQuery)
+                ->where(
+
+                    'status',
+                    'OPEN'
+                )
                 ->where(
                     'severity',
                     'MEDIUM'
@@ -282,10 +298,12 @@ class SecurityFindingController extends Controller
                 ->count();
 
         $low =
-            SecurityFinding::where(
-                'status',
-                'OPEN'
-            )
+            (clone $teamFindingQuery)
+                ->where(
+
+                    'status',
+                    'OPEN'
+                )
                 ->where(
                     'severity',
                     'LOW'
@@ -299,7 +317,7 @@ class SecurityFindingController extends Controller
          */
 
         $databases =
-            SecurityFinding::query()
+            (clone $teamFindingQuery)
                 ->whereNotNull('database_name')
                 ->where(
                     'database_name',
@@ -317,7 +335,7 @@ class SecurityFindingController extends Controller
          */
 
         $categories =
-            SecurityFinding::query()
+            (clone $teamFindingQuery)
                 ->whereNotNull('category')
                 ->where(
                     'category',
@@ -415,12 +433,13 @@ class SecurityFindingController extends Controller
      * =========================================================
      */
     public function show(
+        Request $request,
         SecurityFinding $finding
     ): View {
-        $finding->load([
-            'databaseConnection',
-            'histories',
-        ]);
+        $this->ensureFindingBelongsToCurrentTeam(
+            $request,
+            $finding
+        );
 
         return view(
             'security-findings.show',
@@ -436,9 +455,15 @@ class SecurityFindingController extends Controller
      * =========================================================
      */
     public function resolve(
+        Request $request,
         SecurityFinding $finding,
         SecurityFindingLifecycleService $lifecycle,
     ): RedirectResponse {
+        $this->ensureFindingBelongsToCurrentTeam(
+            $request,
+            $finding
+        );
+
         try {
             $lifecycle->resolve($finding, (int) auth()->id());
 
@@ -454,9 +479,15 @@ class SecurityFindingController extends Controller
     }
 
     public function ignore(
+        Request $request,
         SecurityFinding $finding,
         SecurityFindingLifecycleService $lifecycle,
     ): RedirectResponse {
+        $this->ensureFindingBelongsToCurrentTeam(
+            $request,
+            $finding
+        );
+
         try {
             $lifecycle->ignore($finding, (int) auth()->id());
 
@@ -472,9 +503,15 @@ class SecurityFindingController extends Controller
     }
 
     public function reopen(
+        Request $request,
         SecurityFinding $finding,
         SecurityFindingLifecycleService $lifecycle,
     ): RedirectResponse {
+        $this->ensureFindingBelongsToCurrentTeam(
+            $request,
+            $finding
+        );
+
         try {
             $lifecycle->reopen($finding, (int) auth()->id());
 
@@ -487,5 +524,18 @@ class SecurityFindingController extends Controller
                 'finding' => 'Gagal reopen finding: '.$this->safeExceptionDetail($exception),
             ]);
         }
+    }
+
+    private function ensureFindingBelongsToCurrentTeam(
+        Request $request,
+        SecurityFinding $finding
+    ): void {
+        $teamId = $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $finding->team_id !== (int) $teamId,
+            404
+        );
     }
 }
