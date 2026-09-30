@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\SecurityAlert;
 use App\Models\SecurityIncident;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -12,12 +13,21 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Team $team;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->team = Team::factory()->create();
+    }
+
     private function createIncident(
         array $attributes = []
     ): SecurityIncident {
         $creator = User::factory()->create();
 
-        $alert = SecurityAlert::query()->create([
+        $alert = new SecurityAlert([
             'alert_type' => 'VULNERABILITY',
             'severity' => 'HIGH',
             'title' => 'Security Center incident source',
@@ -30,7 +40,10 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
             'last_seen_at' => now(),
         ]);
 
-        return SecurityIncident::query()->create(
+        $alert->team_id = $this->team->id;
+        $alert->save();
+
+        $incident = new SecurityIncident(
             array_merge([
                 'incident_number' => 'INC-'.now()->format('Ymd').'-'.
                     str_pad(
@@ -48,11 +61,40 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
                 'opened_at' => now(),
             ], $attributes)
         );
+
+        $incident->team_id = $this->team->id;
+        $incident->save();
+
+        return $incident;
+    }
+
+    private function actingAsTeamUser(
+        array $attributes = []
+    ): User {
+        $user = User::factory()->create($attributes);
+
+        $this->team->members()->attach(
+            $user->id,
+            [
+                'role' => 'admin',
+            ]
+        );
+
+        $user->forceFill([
+            'current_team_id' => $this->team->id,
+        ])->save();
+
+        $user->unsetRelation('currentTeam');
+        $user->refresh();
+
+        $this->actingAs($user);
+
+        return $user;
     }
 
     public function test_security_dashboard_exposes_incident_operational_metrics(): void
     {
-        $user = User::factory()->create();
+        $this->actingAsTeamUser();
 
         $this->createIncident([
             'severity' => 'CRITICAL',
@@ -74,7 +116,6 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
         ]);
 
         $response = $this
-            ->actingAs($user)
             ->get(route('security-dashboard'));
 
         $response->assertOk();
@@ -112,7 +153,7 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
 
     public function test_security_dashboard_uses_incident_priority_and_sla_semantics(): void
     {
-        $user = User::factory()->create();
+        $this->actingAsTeamUser();
 
         /*
          * CRITICAL active incident.
@@ -148,7 +189,6 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
         ]);
 
         $response = $this
-            ->actingAs($user)
             ->get(route('security-dashboard'));
 
         $response->assertOk();
@@ -171,7 +211,7 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
 
     public function test_closed_incidents_do_not_enter_active_operational_metrics(): void
     {
-        $user = User::factory()->create();
+        $this->actingAsTeamUser();
 
         $this->createIncident([
             'severity' => 'CRITICAL',
@@ -181,7 +221,6 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
         ]);
 
         $response = $this
-            ->actingAs($user)
             ->get(route('security-dashboard'));
 
         $response->assertOk();
@@ -224,7 +263,7 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
 
     public function test_security_dashboard_shows_only_five_recent_incidents(): void
     {
-        $user = User::factory()->create();
+        $this->actingAsTeamUser();
 
         foreach (range(1, 7) as $index) {
             $this->createIncident([
@@ -234,7 +273,6 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
         }
 
         $response = $this
-            ->actingAs($user)
             ->get(route('security-dashboard'));
 
         $response->assertOk();
@@ -253,10 +291,9 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
 
     public function test_security_dashboard_contains_incident_navigation(): void
     {
-        $user = User::factory()->create();
+        $this->actingAsTeamUser();
 
         $response = $this
-            ->actingAs($user)
             ->get(route('security-dashboard'));
 
         $response->assertOk();
@@ -277,7 +314,7 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
 
     public function test_recent_incident_links_back_to_source_security_alert(): void
     {
-        $user = User::factory()->create();
+        $this->actingAsTeamUser();
 
         $incident = $this->createIncident([
             'title' => 'Cross-linked incident',
@@ -290,7 +327,6 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
         $this->assertNotNull($alert);
 
         $response = $this
-            ->actingAs($user)
             ->get(route('security-dashboard'));
 
         $response->assertOk();
@@ -310,10 +346,9 @@ class SecurityDashboardIncidentIntegrationTest extends TestCase
 
     public function test_security_dashboard_incident_operational_metrics_link_to_filtered_queue(): void
     {
-        $user = User::factory()->create();
+        $this->actingAsTeamUser();
 
         $response = $this
-            ->actingAs($user)
             ->get(route('security-dashboard'));
 
         $response->assertOk();

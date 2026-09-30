@@ -578,7 +578,7 @@ class SecurityDashboardController extends Controller
         */
 
         $incidentQuery = SecurityIncident::query()
-            > forTeam($teamId);
+            ->forTeam($teamId);
 
         $totalIncidents = (clone $incidentQuery)->count();
 
