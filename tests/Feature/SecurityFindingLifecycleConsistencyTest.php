@@ -6,13 +6,19 @@ use App\Models\User;
 it('records the same immutable finding history through security audit lifecycle routes', function () {
     $user = User::factory()->create();
 
-    $finding = SecurityFinding::query()->create([
+    $finding = new SecurityFinding([
+
         'finding_type' => 'WEAK_PRIVILEGE',
         'category' => 'PRIVILEGE',
         'severity' => 'HIGH',
         'title' => 'Privilege review required',
         'status' => 'OPEN',
     ]);
+
+    $finding->team_id =
+        (int) $user->current_team_id;
+
+    $finding->save();
 
     $this->actingAs($user)
         ->post(route('security-audit.resolve', $finding))

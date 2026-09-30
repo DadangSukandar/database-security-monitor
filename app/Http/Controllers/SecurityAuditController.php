@@ -17,9 +17,14 @@ class SecurityAuditController extends Controller
             'search' => ['nullable', 'string', 'max:255'],
             'severity' => ['nullable', 'string', 'in:CRITICAL,HIGH,MEDIUM,LOW'],
             'status' => ['nullable', 'string', 'in:OPEN,RESOLVED,IGNORED'],
-            'database_connection_id' => ['nullable', 'integer', 'exists:database_connections,id'],
+            'database_connection_id' => ['nullable', 'integer'],
         ]);
-        $query = SecurityFinding::query()
+
+        $teamId = (int) $request->user()->current_team_id;
+
+        $teamFindingQuery = SecurityFinding::query()
+            ->forTeam($teamId);
+        $query = (clone $teamFindingQuery)
             ->with('databaseConnection')
             ->latest('detected_at');
 
@@ -90,49 +95,73 @@ class SecurityAuditController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $total = SecurityFinding::count();
+        $total =
+            (clone $teamFindingQuery)
+                ->count();
 
-        $critical = SecurityFinding::where(
-            'severity',
-            'CRITICAL'
-        )->where(
-            'status',
-            'OPEN'
-        )->count();
+        $critical =
+            (clone $teamFindingQuery)
+                ->where(
+                    'severity',
+                    'CRITICAL'
+                )
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
 
-        $high = SecurityFinding::where(
-            'severity',
-            'HIGH'
-        )->where(
-            'status',
-            'OPEN'
-        )->count();
+        $high =
+            (clone $teamFindingQuery)
+                ->where(
+                    'severity',
+                    'HIGH'
+                )
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
 
-        $medium = SecurityFinding::where(
-            'severity',
-            'MEDIUM'
-        )->where(
-            'status',
-            'OPEN'
-        )->count();
+        $medium =
+            (clone $teamFindingQuery)
+                ->where(
+                    'severity',
+                    'MEDIUM'
+                )
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
 
-        $low = SecurityFinding::where(
-            'severity',
-            'LOW'
-        )->where(
-            'status',
-            'OPEN'
-        )->count();
+        $low =
+            (clone $teamFindingQuery)
+                ->where(
+                    'severity',
+                    'LOW'
+                )
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
 
-        $open = SecurityFinding::where(
-            'status',
-            'OPEN'
-        )->count();
+        $open =
+            (clone $teamFindingQuery)
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
 
-        $resolved = SecurityFinding::where(
-            'status',
-            'RESOLVED'
-        )->count();
+        $resolved =
+            (clone $teamFindingQuery)
+                ->where(
+                    'status',
+                    'RESOLVED'
+                )
+                ->count();
 
         /*
         |--------------------------------------------------------------------------
@@ -140,11 +169,15 @@ class SecurityAuditController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $score = $this->calculateSecurityScore();
+        $score = $this->calculateSecurityScore(
+            $teamId
+        );
 
-        $connections = DatabaseConnection::orderBy(
-            'name'
-        )->get();
+        $connections =
+            DatabaseConnection::query()
+                ->forTeam($teamId)
+                ->orderBy('name')
+                ->get();
 
         return view(
             'security-audit.index',
@@ -173,17 +206,22 @@ class SecurityAuditController extends Controller
         Request $request,
         SecurityAuditScanner $scanner
     ) {
+
         $validated = $request->validate([
             'database_connection_id' => [
                 'required',
                 'integer',
-                'exists:database_connections,id',
             ],
         ]);
 
-        $connection = DatabaseConnection::query()->findOrFail(
-            (int) $validated['database_connection_id']
-        );
+        $teamId = (int) $request->user()->current_team_id;
+
+        $connection =
+            DatabaseConnection::query()
+                ->forTeam($teamId)
+                ->findOrFail(
+                    (int) $validated['database_connection_id']
+                );
 
         try {
 
@@ -209,8 +247,15 @@ class SecurityAuditController extends Controller
         }
     }
 
-    public function show(SecurityFinding $securityFinding)
-    {
+    public function show(
+        Request $request,
+        SecurityFinding $securityFinding
+    ) {
+        $this->ensureFindingBelongsToCurrentTeam(
+            $request,
+            $securityFinding
+        );
+
         $securityFinding->load(
             'databaseConnection'
         );
@@ -230,9 +275,14 @@ class SecurityAuditController extends Controller
     */
 
     public function resolve(
+        Request $request,
         SecurityFinding $securityFinding,
         SecurityFindingLifecycleService $lifecycle,
     ) {
+        $this->ensureFindingBelongsToCurrentTeam(
+            $request,
+            $securityFinding
+        );
         try {
             $lifecycle->resolve($securityFinding, (int) auth()->id());
 
@@ -248,9 +298,14 @@ class SecurityAuditController extends Controller
     }
 
     public function ignore(
+        Request $request,
         SecurityFinding $securityFinding,
         SecurityFindingLifecycleService $lifecycle,
     ) {
+        $this->ensureFindingBelongsToCurrentTeam(
+            $request,
+            $securityFinding
+        );
         try {
             $lifecycle->ignore($securityFinding, (int) auth()->id());
 
@@ -266,9 +321,14 @@ class SecurityAuditController extends Controller
     }
 
     public function reopen(
+        Request $request,
         SecurityFinding $securityFinding,
         SecurityFindingLifecycleService $lifecycle,
     ) {
+        $this->ensureFindingBelongsToCurrentTeam(
+            $request,
+            $securityFinding
+        );
         try {
             $lifecycle->reopen($securityFinding, (int) auth()->id());
 
@@ -289,39 +349,59 @@ class SecurityAuditController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    private function calculateSecurityScore(): int
-    {
-        $critical = SecurityFinding::where(
-            'severity',
-            'CRITICAL'
-        )->where(
-            'status',
-            'OPEN'
-        )->count();
+    private function calculateSecurityScore(
+        int $teamId
+    ): int {
+        $findingQuery = SecurityFinding::query()
+            ->forTeam($teamId);
 
-        $high = SecurityFinding::where(
-            'severity',
-            'HIGH'
-        )->where(
-            'status',
-            'OPEN'
-        )->count();
+        $critical =
+            (clone $findingQuery)
+                ->where(
+                    'severity',
+                    'CRITICAL'
+                )
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
 
-        $medium = SecurityFinding::where(
-            'severity',
-            'MEDIUM'
-        )->where(
-            'status',
-            'OPEN'
-        )->count();
+        $high =
+            (clone $findingQuery)
+                ->where(
+                    'severity',
+                    'HIGH'
+                )
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
 
-        $low = SecurityFinding::where(
-            'severity',
-            'LOW'
-        )->where(
-            'status',
-            'OPEN'
-        )->count();
+        $medium =
+            (clone $findingQuery)
+                ->where(
+                    'severity',
+                    'MEDIUM'
+                )
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
+
+        $low =
+            (clone $findingQuery)
+                ->where(
+                    'severity',
+                    'LOW'
+                )
+                ->where(
+                    'status',
+                    'OPEN'
+                )
+                ->count();
 
         $deduction =
             ($critical * 30) +
@@ -332,6 +412,19 @@ class SecurityAuditController extends Controller
         return max(
             0,
             100 - $deduction
+        );
+    }
+
+    private function ensureFindingBelongsToCurrentTeam(
+        Request $request,
+        SecurityFinding $securityFinding
+    ): void {
+        $teamId = $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $securityFinding->team_id !== (int) $teamId,
+            404
         );
     }
 }
