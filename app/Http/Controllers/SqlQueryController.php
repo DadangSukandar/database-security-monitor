@@ -13,11 +13,20 @@ use Throwable;
 
 class SqlQueryController extends Controller
 {
-    public function index(): View
-    {
-        return view('sql-query.index', [
-            'connections' => $this->activeConnections(),
-        ]);
+    public function index(
+        Request $request
+    ): View {
+        $teamId =
+            (int) $request->user()->current_team_id;
+
+        return view(
+            'sql-query.index',
+            [
+                'connections' => $this->activeConnections(
+                    $teamId
+                ),
+            ]
+        );
     }
 
     public function execute(
@@ -30,7 +39,6 @@ class SqlQueryController extends Controller
             'database_connection_id' => [
                 'required',
                 'integer',
-                'exists:database_connections,id',
             ],
             'query' => [
                 'required',
@@ -39,13 +47,17 @@ class SqlQueryController extends Controller
             ],
         ]);
 
+        $teamId =
+            (int) $request->user()->current_team_id;
+
         $databaseConnection =
-            DatabaseConnection::query()
-                ->findOrFail(
-                    (int) $validated[
-                        'database_connection_id'
-                    ]
-                );
+                DatabaseConnection::query()
+                    ->forTeam($teamId)
+                    ->findOrFail(
+                        (int) $validated[
+                            'database_connection_id'
+                        ]
+                    );
 
         $sql = trim(
             (string) $validated['query']
@@ -75,6 +87,7 @@ class SqlQueryController extends Controller
                     $databaseConnection,
                     $sql,
                     $activityLogger,
+                    $teamId,
                     &$connected,
                     &$startTime
                 ): View {
@@ -118,7 +131,9 @@ class SqlQueryController extends Controller
                     return view(
                         'sql-query.index',
                         [
-                            'connections' => $this->activeConnections(),
+                            'connections' => $this->activeConnections(
+                                $teamId
+                            ),
 
                             'selectedConnection' => $databaseConnection,
 
@@ -176,7 +191,9 @@ class SqlQueryController extends Controller
             return view(
                 'sql-query.index',
                 [
-                    'connections' => $this->activeConnections(),
+                    'connections' => $this->activeConnections(
+                        $teamId
+                    ),
 
                     'selectedConnection' => $databaseConnection,
 
@@ -196,10 +213,15 @@ class SqlQueryController extends Controller
         }
     }
 
-    private function activeConnections()
-    {
+    private function activeConnections(
+        int $teamId
+    ) {
         return DatabaseConnection::query()
-            ->where('is_active', true)
+            ->forTeam($teamId)
+            ->where(
+                'is_active',
+                true
+            )
             ->orderBy('name')
             ->get();
     }

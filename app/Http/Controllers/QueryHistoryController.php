@@ -10,7 +10,12 @@ class QueryHistoryController extends Controller
 {
     public function index(Request $request)
     {
+
+        $teamId =
+            (int) $request->user()->current_team_id;
+
         $query = DatabaseActivity::query()
+            ->forTeam($teamId)
             ->with('databaseConnection')
             ->latest('executed_at')
             ->latest('id');
@@ -142,9 +147,11 @@ class QueryHistoryController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $connections = DatabaseConnection::query()
-            ->orderBy('name')
-            ->get();
+        $connections =
+            DatabaseConnection::query()
+                ->forTeam($teamId)
+                ->orderBy('name')
+                ->get();
 
         return view(
             'query-history.index',
@@ -160,22 +167,39 @@ class QueryHistoryController extends Controller
         );
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Detail
     |--------------------------------------------------------------------------
     */
 
-    public function show(DatabaseActivity $databaseActivity)
-    {
-        $databaseActivity->load(
-            'databaseConnection'
+    public function show(
+        Request $request,
+        DatabaseActivity $databaseActivity
+    ) {
+        $this->ensureActivityBelongsToCurrentTeam(
+            $request,
+            $databaseActivity
         );
 
         return view(
             'query-history.show',
             compact('databaseActivity')
+        );
+    }
+
+    private function ensureActivityBelongsToCurrentTeam(
+        Request $request,
+        DatabaseActivity $databaseActivity
+    ): void {
+        $teamId =
+            $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $databaseActivity->team_id
+                !== (int) $teamId,
+            404
         );
     }
 }

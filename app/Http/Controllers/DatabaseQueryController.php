@@ -14,19 +14,36 @@ use Throwable;
 
 class DatabaseQueryController extends Controller
 {
-    public function index(): View
-    {
-        $connections = DatabaseConnection::query()
-            ->orderBy('name')
-            ->get();
+    public function index(
+        Request $request
+    ): View {
+        $teamId =
+            (int) $request->user()->current_team_id;
 
-        $history = DatabaseActivity::query()
-            ->where('action', 'QUERY')
-            ->with('databaseConnection')
-            ->latest('executed_at')
-            ->paginate(20);
+        $connections =
+            DatabaseConnection::query()
+                ->forTeam($teamId)
+                ->orderBy('name')
+                ->get();
 
-        return view('database-query.index', compact('connections', 'history'));
+        $history =
+            DatabaseActivity::query()
+                ->forTeam($teamId)
+                ->where(
+                    'action',
+                    'QUERY'
+                )
+                ->with('databaseConnection')
+                ->latest('executed_at')
+                ->paginate(20);
+
+        return view(
+            'database-query.index',
+            compact(
+                'connections',
+                'history'
+            )
+        );
     }
 
     public function execute(
@@ -36,11 +53,12 @@ class DatabaseQueryController extends Controller
         ReadOnlySqlGuard $readOnlySqlGuard,
     ): View|RedirectResponse {
         $validated = $request->validate([
+
             'connection_id' => [
                 'required',
                 'integer',
-                'exists:database_connections,id',
             ],
+
             'sql' => [
                 'required',
                 'string',
@@ -48,9 +66,15 @@ class DatabaseQueryController extends Controller
             ],
         ]);
 
-        $connection = DatabaseConnection::query()->findOrFail(
-            (int) $validated['connection_id']
-        );
+        $teamId =
+    (int) $request->user()->current_team_id;
+
+        $connection =
+            DatabaseConnection::query()
+                ->forTeam($teamId)
+                ->findOrFail(
+                    (int) $validated['connection_id']
+                );
 
         $sql = rtrim(
             trim((string) $validated['sql']),

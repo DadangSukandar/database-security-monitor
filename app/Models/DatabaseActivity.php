@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DatabaseActivityStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -33,6 +34,26 @@ class DatabaseActivity extends Model
     {
         return $this->belongsTo(
             DatabaseConnection::class
+        );
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(
+            Team::class
+        );
+    }
+
+    /**
+     * @param  Builder<DatabaseActivity>  $query
+     */
+    public function scopeForTeam(
+        Builder $query,
+        int $teamId
+    ): Builder {
+        return $query->where(
+            'team_id',
+            $teamId
         );
     }
 }

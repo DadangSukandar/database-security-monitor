@@ -104,22 +104,44 @@ class DatabaseActivityLogger
         |
         */
 
-        $activity = DatabaseActivity::query()->create([
+        if ($connection->team_id === null) {
+            throw new \RuntimeException(
+                'Cannot create database activity without trusted team ownership.'
+            );
+        }
+
+        $activity = new DatabaseActivity([
             'database_connection_id' => $connection->id,
-            'database_name' => $connection->database,
+
+            'database_name' => $databaseName,
+
             'schema_name' => $this->getSchemaName(
                 $connection->driver
             ),
+
             'table_name' => $table,
+
             'username' => $connection->username,
+
             'client_ip' => request()->ip(),
+
             'action' => strtoupper($action),
-            'query' => $safeQuery,
-            'status' => $status->value,
+
+            'query' => $query,
+
+            'status' => $status,
+
             'error_message' => $errorMessage,
+
             'execution_time_ms' => $executionTimeMs,
+
             'executed_at' => now(),
         ]);
+
+        $activity->team_id =
+            (int) $connection->team_id;
+
+        $activity->save();
 
         /*
         |--------------------------------------------------------------------------
