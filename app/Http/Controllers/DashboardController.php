@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DatabaseConnection;
+use App\Models\SecurityFinding;
 use App\Services\SecurityScoreService;
 use Illuminate\Http\Request;
 
@@ -22,7 +23,7 @@ class DashboardController extends Controller
                 ->forTeam($teamId);
 
         $teamFindingQuery =
-            (clone $teamFindingQuery)
+            SecurityFinding::query()
                 ->forTeam($teamId);
         /*
         |--------------------------------------------------------------------------

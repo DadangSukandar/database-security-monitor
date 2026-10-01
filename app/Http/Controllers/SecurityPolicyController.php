@@ -155,61 +155,75 @@ class SecurityPolicyController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-            ],
+        $teamId =
+            (int) $request->user()->current_team_id;
 
-            'code' => [
-                'required',
-                'string',
-                'max:100',
-                Rule::unique(
-                    'security_policies',
-                    'code'
-                )->where(
-                    fn ($query) => $query->where(
-                        'team_id',
-                        $teamId
+        $request->merge([
+            'code' => strtoupper(
+                trim(
+                    (string) $request->input(
+                        'code'
                     )
-                ),
-            ],
-
-            'rule_type' => [
-                'required',
-                'string',
-                'max:100',
-            ],
-
-            'severity' => [
-                'required',
-                Rule::in([
-                    'CRITICAL',
-                    'HIGH',
-                    'MEDIUM',
-                    'LOW',
-                ]),
-            ],
-
-            'priority' => [
-                'required',
-                'integer',
-                'min:1',
-                'max:9999',
-            ],
-
-            'conditions' => [
-                'nullable',
-                'string',
-            ],
-
-            'is_active' => [
-                'nullable',
-                'boolean',
-            ],
+                )
+            ),
         ]);
+
+        $validated =
+            $request->validate([
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                ],
+
+                'code' => [
+                    'required',
+                    'string',
+                    'max:100',
+                    Rule::unique(
+                        'security_policies',
+                        'code'
+                    )->where(
+                        fn ($query) => $query->where(
+                            'team_id',
+                            $teamId
+                        )
+                    ),
+                ],
+
+                'rule_type' => [
+                    'required',
+                    'string',
+                    'max:100',
+                ],
+
+                'severity' => [
+                    'required',
+                    Rule::in([
+                        'CRITICAL',
+                        'HIGH',
+                        'MEDIUM',
+                        'LOW',
+                    ]),
+                ],
+
+                'priority' => [
+                    'required',
+                    'integer',
+                    'min:1',
+                    'max:9999',
+                ],
+
+                'conditions' => [
+                    'nullable',
+                    'string',
+                ],
+
+                'is_active' => [
+                    'nullable',
+                    'boolean',
+                ],
+            ]);
 
         /*
         |--------------------------------------------------------------------------
