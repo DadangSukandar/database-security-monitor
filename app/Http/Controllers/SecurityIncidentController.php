@@ -186,68 +186,77 @@ class SecurityIncidentController extends Controller
             'oldest_active' => $oldestActiveIncident?->ageLabel(),
         ];
 
-        $incidentSlaMetrics = [
-            'breached' => (clone $incidentQuery)
-                ->where('status', '!=', 'CLOSED')
-                ->whereResponseSlaStatus('BREACHED')
-                ->count(),
+        $incidentSlaStats = (clone $incidentQuery)
+            ->where('status', '!=', 'CLOSED')
+            ->selectResponseSlaCounts()
+            ->first();
 
-            'due_soon' => (clone $incidentQuery)
-                ->where('status', '!=', 'CLOSED')
-                ->whereResponseSlaStatus('DUE_SOON')
-                ->count(),
+        $incidentSlaMetrics = [
+            'breached' => (int) (
+                $incidentSlaStats?->breached_count ?? 0
+            ),
+
+            'due_soon' => (int) (
+                $incidentSlaStats?->due_soon_count ?? 0
+            ),
         ];
 
-        $acknowledgedIncidents = (clone $incidentQuery)
+        $resolutionMetricIncidents = (clone $incidentQuery)
             ->whereNotNull('opened_at')
-            ->whereNotNull('acknowledged_at')
+            ->where(function ($query) {
+                $query
+                    ->whereNotNull('acknowledged_at')
+                    ->orWhereNotNull('resolved_at');
+            })
             ->get([
                 'id',
                 'severity',
                 'status',
                 'opened_at',
                 'acknowledged_at',
-            ]);
-
-        $resolvedIncidents = (clone $incidentQuery)
-            ->whereNotNull('opened_at')
-            ->whereNotNull('resolved_at')
-            ->get([
-                'id',
-                'opened_at',
                 'resolved_at',
             ]);
 
-        $acknowledgementDurations = $acknowledgedIncidents
+        $acknowledgementDurations = $resolutionMetricIncidents
+            ->filter(
+                fn (SecurityIncident $incident): bool => $incident->acknowledged_at !== null
+            )
             ->map(
                 fn (SecurityIncident $incident): float => $incident->opened_at->diffInMinutes(
                     $incident->acknowledged_at
                 )
             );
 
-        $resolutionDurations = $resolvedIncidents
+        $resolutionDurations = $resolutionMetricIncidents
+            ->filter(
+                fn (SecurityIncident $incident): bool => $incident->resolved_at !== null
+            )
             ->map(
                 fn (SecurityIncident $incident): float => $incident->opened_at->diffInMinutes(
                     $incident->resolved_at
                 )
             );
 
-        $acknowledgementSlaMet = (clone $incidentQuery)
+        $acknowledgementSlaStats = (clone $incidentQuery)
             ->whereNotNull('opened_at')
             ->whereNotNull('acknowledged_at')
-            ->whereResponseSlaStatus('MET')
-            ->count();
+            ->selectResponseSlaCounts()
+            ->selectRaw(
+                'COUNT(*) AS acknowledged_count'
+            )
+            ->first();
 
-        $acknowledgementSlaBreached = (clone $incidentQuery)
-            ->whereNotNull('opened_at')
-            ->whereNotNull('acknowledged_at')
-            ->whereResponseSlaStatus('BREACHED')
-            ->count();
+        $acknowledgementSlaMet = (int) (
+            $acknowledgementSlaStats?->met_count ?? 0
+        );
 
-        $acknowledgedCount = (clone $incidentQuery)
-            ->whereNotNull('opened_at')
-            ->whereNotNull('acknowledged_at')
-            ->count();
+        $acknowledgementSlaBreached = (int) (
+            $acknowledgementSlaStats?->breached_count ?? 0
+        );
+
+        $acknowledgedCount = (int) (
+            $acknowledgementSlaStats?->acknowledged_count ?? 0
+        );
 
         $incidentResolutionMetrics = [
             'average_acknowledgement_minutes' => $acknowledgementDurations->isNotEmpty()

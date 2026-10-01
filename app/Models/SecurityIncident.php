@@ -256,6 +256,47 @@ class SecurityIncident extends Model
         );
     }
 
+    public function scopeSelectResponseSlaCounts(
+        Builder $query
+    ): Builder {
+        [$expression, $bindings] = $this->responseSlaStatusSql(
+            $query
+        );
+
+        return $query->selectRaw(
+            "
+            SUM(
+                CASE
+                    WHEN {$expression} = 'BREACHED'
+                    THEN 1
+                    ELSE 0
+                END
+            ) AS breached_count,
+
+            SUM(
+                CASE
+                    WHEN {$expression} = 'DUE_SOON'
+                    THEN 1
+                    ELSE 0
+                END
+            ) AS due_soon_count,
+
+            SUM(
+                CASE
+                    WHEN {$expression} = 'MET'
+                    THEN 1
+                    ELSE 0
+                END
+            ) AS met_count
+            ",
+            [
+                ...$bindings,
+                ...$bindings,
+                ...$bindings,
+            ]
+        );
+    }
+
     /**
      * @return array{0: string, 1: list<mixed>}
      */
