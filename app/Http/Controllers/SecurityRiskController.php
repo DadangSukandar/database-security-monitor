@@ -473,10 +473,11 @@ class SecurityRiskController extends Controller
          */
 
         $assessmentCount =
-            VulnerabilityAssessment::count();
+            (clone $teamAssessmentQuery)
+                ->count();
 
         $averageScore =
-            VulnerabilityAssessment::query()
+            (clone $teamAssessmentQuery)
                 ->whereNotNull('score')
                 ->avg('score');
 
@@ -495,7 +496,7 @@ class SecurityRiskController extends Controller
          */
 
         $bestScore =
-            VulnerabilityAssessment::query()
+            (clone $teamAssessmentQuery)
                 ->max('score');
 
         $bestScore =
@@ -510,7 +511,7 @@ class SecurityRiskController extends Controller
          */
 
         $worstScore =
-            VulnerabilityAssessment::query()
+            (clone $teamAssessmentQuery)
                 ->min('score');
 
         $worstScore =

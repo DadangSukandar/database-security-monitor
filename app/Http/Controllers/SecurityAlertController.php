@@ -231,6 +231,7 @@ class SecurityAlertController extends Controller
          */
         $databases =
             SecurityAlert::query()
+                ->forTeam($teamId)
                 ->canonical()
                 ->whereNotNull('database_name')
                 ->where(
@@ -244,6 +245,7 @@ class SecurityAlertController extends Controller
 
         $alertTypes =
             SecurityAlert::query()
+                ->forTeam($teamId)
                 ->canonical()
                 ->whereNotNull('alert_type')
                 ->where(
