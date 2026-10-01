@@ -4,18 +4,27 @@ namespace App\Services;
 
 use App\Models\DiscoveredColumn;
 use App\Models\SensitiveDataFinding;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class SensitiveDataDiscoveryService
 {
-    public function scan(): array
-    {
-        $columns = DiscoveredColumn::query()
-            ->with([
-                'table.database.databaseConnection'
-            ])
-            ->get();
+    public function scan(
+        int $teamId
+    ): array {
+        $columns =
+            DiscoveredColumn::query()
+                ->whereHas(
+                    'table.database.databaseConnection',
+                    function ($query) use ($teamId): void {
+                        $query->forTeam(
+                            $teamId
+                        );
+                    }
+                )
+                ->with([
+                    'table.database.databaseConnection',
+                ])
+                ->get();
 
         $created = 0;
 
@@ -35,20 +44,15 @@ class SensitiveDataDiscoveryService
             foreach ($findings as $finding) {
 
                 SensitiveDataFinding::create([
-                    'discovered_column_id' =>
-                        $column->id,
+                    'discovered_column_id' => $column->id,
 
-                    'category' =>
-                        $finding['category'],
+                    'category' => $finding['category'],
 
-                    'risk_level' =>
-                        $finding['risk_level'],
+                    'risk_level' => $finding['risk_level'],
 
-                    'rule_name' =>
-                        $finding['rule_name'],
+                    'rule_name' => $finding['rule_name'],
 
-                    'description' =>
-                        $finding['description'],
+                    'description' => $finding['description'],
                 ]);
 
                 $created++;
@@ -93,11 +97,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'CREDENTIAL',
                 'risk_level' => 'HIGH',
                 'rule_name' => 'PASSWORD_FIELD',
-                'description' =>
-                    'Column kemungkinan menyimpan password atau password hash.',
+                'description' => 'Column kemungkinan menyimpan password atau password hash.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -120,11 +122,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'CREDENTIAL',
                 'risk_level' => 'HIGH',
                 'rule_name' => 'SECRET_OR_TOKEN',
-                'description' =>
-                    'Column kemungkinan mengandung credential, secret, atau token.',
+                'description' => 'Column kemungkinan mengandung credential, secret, atau token.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -145,11 +145,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'PII',
                 'risk_level' => 'MEDIUM',
                 'rule_name' => 'EMAIL_ADDRESS',
-                'description' =>
-                    'Column kemungkinan berisi alamat email.',
+                'description' => 'Column kemungkinan berisi alamat email.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -173,11 +171,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'PII',
                 'risk_level' => 'MEDIUM',
                 'rule_name' => 'PHONE_NUMBER',
-                'description' =>
-                    'Column kemungkinan berisi nomor telepon.',
+                'description' => 'Column kemungkinan berisi nomor telepon.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -201,11 +197,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'IDENTITY',
                 'risk_level' => 'HIGH',
                 'rule_name' => 'IDENTITY_NUMBER',
-                'description' =>
-                    'Column kemungkinan berisi nomor identitas.',
+                'description' => 'Column kemungkinan berisi nomor identitas.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -227,11 +221,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'PII',
                 'risk_level' => 'MEDIUM',
                 'rule_name' => 'ADDRESS',
-                'description' =>
-                    'Column kemungkinan berisi alamat.',
+                'description' => 'Column kemungkinan berisi alamat.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -252,11 +244,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'PII',
                 'risk_level' => 'MEDIUM',
                 'rule_name' => 'DATE_OF_BIRTH',
-                'description' =>
-                    'Column kemungkinan berisi tanggal lahir.',
+                'description' => 'Column kemungkinan berisi tanggal lahir.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -277,11 +267,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'FINANCIAL',
                 'risk_level' => 'CRITICAL',
                 'rule_name' => 'CREDIT_CARD',
-                'description' =>
-                    'Column kemungkinan berisi nomor kartu pembayaran.',
+                'description' => 'Column kemungkinan berisi nomor kartu pembayaran.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -303,11 +291,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'FINANCIAL',
                 'risk_level' => 'HIGH',
                 'rule_name' => 'BANK_ACCOUNT',
-                'description' =>
-                    'Column kemungkinan berisi nomor rekening.',
+                'description' => 'Column kemungkinan berisi nomor rekening.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -329,11 +315,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'PII',
                 'risk_level' => 'LOW',
                 'rule_name' => 'PERSON_NAME',
-                'description' =>
-                    'Column kemungkinan berisi nama seseorang.',
+                'description' => 'Column kemungkinan berisi nama seseorang.',
             ];
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -354,11 +338,9 @@ class SensitiveDataDiscoveryService
                 'category' => 'IDENTIFIER',
                 'risk_level' => 'LOW',
                 'rule_name' => 'UUID_IDENTIFIER',
-                'description' =>
-                    'Column kemungkinan digunakan sebagai identifier.',
+                'description' => 'Column kemungkinan digunakan sebagai identifier.',
             ];
         }
-
 
         return $results;
     }

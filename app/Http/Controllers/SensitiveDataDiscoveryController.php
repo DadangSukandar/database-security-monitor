@@ -4,45 +4,71 @@ namespace App\Http\Controllers;
 
 use App\Models\SensitiveDataFinding;
 use App\Services\SensitiveDataDiscoveryService;
+use Illuminate\Http\Request;
 use Throwable;
 
 class SensitiveDataDiscoveryController extends Controller
 {
-    public function index()
-    {
-        $findings = SensitiveDataFinding::query()
-            ->with([
-                'column.table.database',
-            ])
-            ->latest()
-            ->paginate(25);
+    public function index(
+        Request $request
+    ) {
+        $teamId =
+            (int) $request->user()->current_team_id;
+
+        $teamFindingQuery =
+            SensitiveDataFinding::query()
+                ->whereHas(
+                    'column.table.database.databaseConnection',
+                    function ($query) use ($teamId): void {
+                        $query->forTeam(
+                            $teamId
+                        );
+                    }
+                );
+
+        $findings =
+            (clone $teamFindingQuery)
+                ->with([
+                    'column.table.database.databaseConnection',
+                ])
+                ->latest()
+                ->paginate(25);
 
         $total =
-            SensitiveDataFinding::count();
+            (clone $teamFindingQuery)
+                ->count();
 
         $critical =
-            SensitiveDataFinding::where(
-                'risk_level',
-                'CRITICAL'
-            )->count();
+            (clone $teamFindingQuery)
+                ->where(
+                    'risk_level',
+                    'CRITICAL'
+                )
+                ->count();
 
         $high =
-            SensitiveDataFinding::where(
-                'risk_level',
-                'HIGH'
-            )->count();
+            (clone $teamFindingQuery)
+                ->where(
+                    'risk_level',
+                    'HIGH'
+                )
+                ->count();
 
         $medium =
-            SensitiveDataFinding::where(
-                'risk_level',
-                'MEDIUM'
-            )->count();
+            (clone $teamFindingQuery)
+                ->where(
+                    'risk_level',
+                    'MEDIUM'
+                )
+                ->count();
 
         $low =
-            SensitiveDataFinding::where(
-                'risk_level',
-                'LOW'
-            )->count();
+            (clone $teamFindingQuery)
+                ->where(
+                    'risk_level',
+                    'LOW'
+                )
+                ->count();
 
         return view(
             'sensitive-data.index',
@@ -58,12 +84,18 @@ class SensitiveDataDiscoveryController extends Controller
     }
 
     public function scan(
+        Request $request,
         SensitiveDataDiscoveryService $service
     ) {
+        $teamId =
+            (int) $request->user()->current_team_id;
+
         try {
 
             $result =
-                $service->scan();
+                $service->scan(
+                    $teamId
+                );
 
             return redirect()
                 ->route(

@@ -7,6 +7,7 @@ use App\Models\DiscoveredColumn;
 use App\Models\DiscoveredDatabase;
 use App\Models\DiscoveredTable;
 use App\Services\DatabaseDiscoveryService;
+use Illuminate\Http\Request;
 use Throwable;
 
 class DatabaseDiscoveryController extends Controller
@@ -17,10 +18,22 @@ class DatabaseDiscoveryController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function index()
-    {
+    public function index(
+        Request $request
+    ) {
+        $teamId =
+            (int) $request->user()->current_team_id;
+
         $databases =
             DiscoveredDatabase::query()
+                ->whereHas(
+                    'databaseConnection',
+                    function ($query) use ($teamId): void {
+                        $query->forTeam(
+                            $teamId
+                        );
+                    }
+                )
                 ->withCount('tables')
                 ->with('databaseConnection')
                 ->latest()
@@ -28,6 +41,7 @@ class DatabaseDiscoveryController extends Controller
 
         $connections =
             DatabaseConnection::query()
+                ->forTeam($teamId)
                 ->orderBy('name')
                 ->get();
 
@@ -35,10 +49,28 @@ class DatabaseDiscoveryController extends Controller
             $databases->count();
 
         $totalTables =
-            DiscoveredTable::count();
+            DiscoveredTable::query()
+                ->whereHas(
+                    'database.databaseConnection',
+                    function ($query) use ($teamId): void {
+                        $query->forTeam(
+                            $teamId
+                        );
+                    }
+                )
+                ->count();
 
         $totalColumns =
-            DiscoveredColumn::count();
+            DiscoveredColumn::query()
+                ->whereHas(
+                    'table.database.databaseConnection',
+                    function ($query) use ($teamId): void {
+                        $query->forTeam(
+                            $teamId
+                        );
+                    }
+                )
+                ->count();
 
         return view(
             'database-discovery.index',
@@ -59,12 +91,16 @@ class DatabaseDiscoveryController extends Controller
     */
 
     public function scan(
+        Request $request,
         DatabaseConnection $databaseConnection,
         DatabaseDiscoveryService $service
     ) {
+        $this->ensureConnectionBelongsToCurrentTeam(
+            $request,
+            $databaseConnection
+        );
 
         try {
-
             $result =
                 $service->scan(
                     $databaseConnection
@@ -82,9 +118,7 @@ class DatabaseDiscoveryController extends Controller
                     $result['columns'].
                     ' columns ditemukan.'
                 );
-
         } catch (Throwable $e) {
-
             return redirect()
                 ->route(
                     'database-discovery.index'
@@ -104,13 +138,17 @@ class DatabaseDiscoveryController extends Controller
     */
 
     public function show(
+        Request $request,
         DiscoveredDatabase $discoveredDatabase
     ) {
+        $this->ensureDiscoveredDatabaseBelongsToCurrentTeam(
+            $request,
+            $discoveredDatabase
+        );
 
         $discoveredDatabase->load([
             'databaseConnection',
             'tables' => function ($query) {
-
                 $query
                     ->withCount('columns')
                     ->orderBy(
@@ -137,11 +175,16 @@ class DatabaseDiscoveryController extends Controller
     */
 
     public function table(
+        Request $request,
         DiscoveredTable $discoveredTable
     ) {
+        $this->ensureDiscoveredTableBelongsToCurrentTeam(
+            $request,
+            $discoveredTable
+        );
 
         $discoveredTable->load([
-            'database',
+            'database.databaseConnection',
             'columns',
         ]);
 
@@ -150,6 +193,89 @@ class DatabaseDiscoveryController extends Controller
             compact(
                 'discoveredTable'
             )
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | TENANT GUARDS
+    |--------------------------------------------------------------------------
+    */
+
+    private function ensureConnectionBelongsToCurrentTeam(
+        Request $request,
+        DatabaseConnection $databaseConnection
+    ): void {
+        $teamId =
+            $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $databaseConnection->team_id
+                !== (int) $teamId,
+            404
+        );
+    }
+
+    private function ensureDiscoveredDatabaseBelongsToCurrentTeam(
+        Request $request,
+        DiscoveredDatabase $discoveredDatabase
+    ): void {
+        $teamId =
+            $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null,
+            404
+        );
+
+        $belongsToTeam =
+            DatabaseConnection::query()
+                ->forTeam(
+                    (int) $teamId
+                )
+                ->whereKey(
+                    $discoveredDatabase
+                        ->database_connection_id
+                )
+                ->exists();
+
+        abort_unless(
+            $belongsToTeam,
+            404
+        );
+    }
+
+    private function ensureDiscoveredTableBelongsToCurrentTeam(
+        Request $request,
+        DiscoveredTable $discoveredTable
+    ): void {
+        $teamId =
+            $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null,
+            404
+        );
+
+        $belongsToTeam =
+            DiscoveredTable::query()
+                ->whereKey(
+                    $discoveredTable->id
+                )
+                ->whereHas(
+                    'database.databaseConnection',
+                    function ($query) use ($teamId): void {
+                        $query->forTeam(
+                            (int) $teamId
+                        );
+                    }
+                )
+                ->exists();
+
+        abort_unless(
+            $belongsToTeam,
+            404
         );
     }
 }

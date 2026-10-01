@@ -24,6 +24,11 @@ class DatabaseExplorerController extends Controller
         DatabaseConnectorService $connector,
         DatabaseActivityLogger $activityLogger
     ) {
+        $this->ensureConnectionBelongsToCurrentTeam(
+            $request,
+            $databaseConnection
+        );
+
         try {
             return $connector->withConnection(
                 $databaseConnection,
@@ -670,5 +675,20 @@ class DatabaseExplorerController extends Controller
         }
 
         return $result;
+    }
+
+    private function ensureConnectionBelongsToCurrentTeam(
+        Request $request,
+        DatabaseConnection $databaseConnection
+    ): void {
+        $teamId =
+            $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $databaseConnection->team_id
+                !== (int) $teamId,
+            404
+        );
     }
 }
