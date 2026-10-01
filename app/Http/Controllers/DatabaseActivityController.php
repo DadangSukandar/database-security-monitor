@@ -11,6 +11,14 @@ class DatabaseActivityController extends Controller
 {
     public function index(Request $request)
     {
+
+        $teamId =
+            (int) $request->user()->current_team_id;
+
+        $teamActivityQuery =
+            DatabaseActivity::query()
+                ->forTeam($teamId);
+
         /*
         |--------------------------------------------------------------------------
         | Filters
@@ -39,7 +47,7 @@ class DatabaseActivityController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $query = DatabaseActivity::query()
+        $query = (clone $teamActivityQuery)
             ->with('databaseConnection')
             ->latest('executed_at');
 
@@ -135,22 +143,27 @@ class DatabaseActivityController extends Controller
         */
 
         $totalActivities =
-            DatabaseActivity::count();
+            (clone $teamActivityQuery)
+                ->count();
 
         $successfulActivities =
-            DatabaseActivity::where(
-                'status',
-                DatabaseActivityStatus::SUCCESS->value
-            )->count();
+            (clone $teamActivityQuery)
+                ->where(
+                    'status',
+                    DatabaseActivityStatus::SUCCESS->value
+                )
+                ->count();
 
         $failedActivities =
-            DatabaseActivity::where(
-                'status',
-                DatabaseActivityStatus::FAILED->value
-            )->count();
+            (clone $teamActivityQuery)
+                ->where(
+                    'status',
+                    DatabaseActivityStatus::FAILED->value
+                )
+                ->count();
 
         $averageExecutionTime =
-            DatabaseActivity::query()
+            (clone $teamActivityQuery)
                 ->whereNotNull(
                     'execution_time_ms'
                 )
@@ -166,6 +179,7 @@ class DatabaseActivityController extends Controller
 
         $connections =
             DatabaseConnection::query()
+                ->forTeam($teamId)
                 ->orderBy('name')
                 ->get();
 
@@ -193,8 +207,13 @@ class DatabaseActivityController extends Controller
     }
 
     public function show(
+        Request $request,
         DatabaseActivity $databaseActivity
     ) {
+        $this->ensureActivityBelongsToCurrentTeam(
+            $request,
+            $databaseActivity
+        );
 
         $databaseActivity->load(
             'databaseConnection'
@@ -205,6 +224,21 @@ class DatabaseActivityController extends Controller
             compact(
                 'databaseActivity'
             )
+        );
+    }
+
+    private function ensureActivityBelongsToCurrentTeam(
+        Request $request,
+        DatabaseActivity $databaseActivity
+    ): void {
+        $teamId =
+            $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $databaseActivity->team_id
+                !== (int) $teamId,
+            404
         );
     }
 }
