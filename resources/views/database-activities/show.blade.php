@@ -194,13 +194,11 @@
 
                     <div class="value">
 
-                        {{
-                            strtoupper(
-                                $databaseActivity
-                                    ->action
-                                ?? '-'
-                            )
-                        }}
+                        {{ strtoupper(
+                            $databaseActivity->status instanceof \BackedEnum
+                                ? $databaseActivity->status->value
+                                : (string) $databaseActivity->status
+                        ) }}
 
                     </div>
 
@@ -216,12 +214,12 @@
                     <div class="value">
 
                         @if(
-                            strtoupper(
-                                $databaseActivity->status
+                                strtoupper(
+                                    $databaseActivity->status instanceof \BackedEnum
+                                        ? $databaseActivity->status->value
+                                        : (string) $databaseActivity->status
+                                ) === 'SUCCESS'
                             )
-                            ===
-                            'SUCCESS'
-                        )
 
                             <span class="success">
                                 SUCCESS

@@ -1072,13 +1072,11 @@
                                                 action
                                             ">
 
-                                                {{
-                                                    strtoupper(
-                                                        $activity
-                                                            ->action
-                                                        ?? '-'
-                                                    )
-                                                }}
+                                                {{ strtoupper(
+                                                    $activity->status instanceof \BackedEnum
+                                                        ? $activity->status->value
+                                                        : (string) $activity->status
+                                                ) }}
 
                                             </span>
 
@@ -1109,13 +1107,13 @@
 
                                         <td>
 
-                                            @if(
-                                                strtoupper(
-                                                    $activity->status
+                                            @if (
+                                                    strtoupper(
+                                                        $activity->status instanceof \BackedEnum
+                                                            ? $activity->status->value
+                                                            : (string) $activity->status
+                                                    ) === 'SUCCESS'
                                                 )
-                                                ===
-                                                'SUCCESS'
-                                            )
 
                                                 <span class="
                                                     badge
