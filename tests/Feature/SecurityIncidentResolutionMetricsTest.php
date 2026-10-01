@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\SecurityAlert;
 use App\Models\SecurityIncident;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -13,6 +14,8 @@ class SecurityIncidentResolutionMetricsTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Team $team;
+
     private static int $sequence = 1;
 
     protected function setUp(): void
@@ -20,6 +23,8 @@ class SecurityIncidentResolutionMetricsTest extends TestCase
         parent::setUp();
 
         self::$sequence = 1;
+
+        $this->team = Team::factory()->create();
     }
 
     public function test_incident_index_exposes_resolution_analytics(): void
@@ -28,9 +33,7 @@ class SecurityIncidentResolutionMetricsTest extends TestCase
             Carbon::parse('2026-09-02 12:00:00')
         );
 
-        $user = User::factory()->create();
-
-        $this->actingAs($user);
+        $this->actingAsTeamUser();
 
         /*
          * HIGH SLA = 60 minutes.
@@ -110,9 +113,7 @@ class SecurityIncidentResolutionMetricsTest extends TestCase
 
     public function test_unacknowledged_incident_is_excluded_from_acknowledgement_performance(): void
     {
-        $user = User::factory()->create();
-
-        $this->actingAs($user);
+        $this->actingAsTeamUser();
 
         $this->createIncident([
             'severity' => 'CRITICAL',
@@ -138,9 +139,7 @@ class SecurityIncidentResolutionMetricsTest extends TestCase
 
     public function test_unresolved_incident_is_excluded_from_average_resolution_time(): void
     {
-        $user = User::factory()->create();
-
-        $this->actingAs($user);
+        $this->actingAsTeamUser();
 
         $this->createIncident([
             'status' => 'ACKNOWLEDGED',
@@ -168,12 +167,37 @@ class SecurityIncidentResolutionMetricsTest extends TestCase
         )->assertRedirect();
     }
 
+    private function actingAsTeamUser(): User
+    {
+        $user = User::factory()->create();
+
+        $this->team
+            ->members()
+            ->attach(
+                $user->id,
+                [
+                    'role' => 'admin',
+                ]
+            );
+
+        $user->forceFill([
+            'current_team_id' => $this->team->id,
+        ])->save();
+
+        $user->unsetRelation('currentTeam');
+        $user->refresh();
+
+        $this->actingAs($user);
+
+        return $user;
+    }
+
     private function createIncident(
         array $attributes = []
     ): SecurityIncident {
         $sequence = self::$sequence++;
 
-        $alert = SecurityAlert::query()->create([
+        $alert = new SecurityAlert([
             'alert_type' => 'VULNERABILITY',
             'severity' => 'HIGH',
             'title' => 'Resolution analytics source alert '.$sequence,
@@ -186,7 +210,11 @@ class SecurityIncidentResolutionMetricsTest extends TestCase
             'last_seen_at' => now(),
         ]);
 
-        return SecurityIncident::query()->create(
+        $alert->team_id = $this->team->id;
+
+        $alert->save();
+
+        $incident = new SecurityIncident(
             array_merge([
                 'incident_number' => sprintf(
                     'INC-20260902-%04d',
@@ -200,5 +228,11 @@ class SecurityIncidentResolutionMetricsTest extends TestCase
                 'opened_at' => now(),
             ], $attributes)
         );
+
+        $incident->team_id = $this->team->id;
+
+        $incident->save();
+
+        return $incident;
     }
 }

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class SecurityDashboardTenantIsolationTest extends TestCase
@@ -101,6 +102,59 @@ class SecurityDashboardTenantIsolationTest extends TestCase
             ]
         );
 
+        $findingStatisticQueries = [];
+
+        DB::listen(
+            function ($query) use (&$findingStatisticQueries): void {
+                $sql =
+                    strtolower(
+                        $query->sql
+                    );
+
+                if (
+                    str_contains(
+                        $sql,
+                        'vulnerability_findings'
+                    )
+                    && str_contains(
+                        $sql,
+                        'total_findings'
+                    )
+                    && str_contains(
+                        $sql,
+                        'open_findings'
+                    )
+                    && str_contains(
+                        $sql,
+                        'resolved_findings'
+                    )
+                    && str_contains(
+                        $sql,
+                        'ignored_findings'
+                    )
+                    && str_contains(
+                        $sql,
+                        'critical_findings'
+                    )
+                    && str_contains(
+                        $sql,
+                        'high_findings'
+                    )
+                    && str_contains(
+                        $sql,
+                        'medium_findings'
+                    )
+                    && str_contains(
+                        $sql,
+                        'low_findings'
+                    )
+                ) {
+                    $findingStatisticQueries[] =
+                        $query->sql;
+                }
+            }
+        );
+
         /*
          * =========================================================
          * REQUEST DASHBOARD SEBAGAI TEAM A
@@ -120,8 +174,7 @@ class SecurityDashboardTenantIsolationTest extends TestCase
              */
             ->assertViewHas(
                 'latestAssessment',
-                fn ($assessment): bool =>
-                    $assessment?->id === $teamAAssessment->id
+                fn ($assessment): bool => $assessment?->id === $teamAAssessment->id
             )
 
             /*
@@ -189,6 +242,18 @@ class SecurityDashboardTenantIsolationTest extends TestCase
                             === $teamAAssessment->id;
                 }
             );
+
+        $this->assertCount(
+            1,
+            $findingStatisticQueries,
+            'Security Dashboard harus menghitung finding statistics '.
+            'dengan tepat satu conditional aggregate query.'.
+            PHP_EOL.
+            implode(
+                PHP_EOL,
+                $findingStatisticQueries
+            )
+        );
     }
 
     private function actingAsTeamUser(

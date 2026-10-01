@@ -132,98 +132,102 @@ class SecurityDashboardController extends Controller
                 );
 
             /*
-             * =================================================
-             * TOTAL FINDINGS
-             * =================================================
-             */
+            * =================================================
+            * FINDING AGGREGATE STATISTICS
+            * =================================================
+            */
+            $findingStats =
+                (clone $findingQuery)
+                    ->selectRaw(
+                        "
+                        COUNT(*) AS total_findings,
+
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ) AS open_findings,
+
+                        SUM(
+                            CASE
+                                WHEN status = 'RESOLVED'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ) AS resolved_findings,
+
+                        SUM(
+                            CASE
+                                WHEN status = 'IGNORED'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ) AS ignored_findings,
+
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'CRITICAL'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ) AS critical_findings,
+
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'HIGH'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ) AS high_findings,
+
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'MEDIUM'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ) AS medium_findings,
+
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'LOW'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ) AS low_findings
+                        "
+                    )
+                    ->first();
 
             $totalFindings =
-                (clone $findingQuery)
-                    ->count();
-
-            /*
-             * =================================================
-             * FINDING STATUS
-             * =================================================
-             */
+                (int) ($findingStats?->total_findings ?? 0);
 
             $openFindings =
-                (clone $findingQuery)
-                    ->where(
-                        'status',
-                        'OPEN'
-                    )
-                    ->count();
+                (int) ($findingStats?->open_findings ?? 0);
 
             $resolvedFindings =
-                (clone $findingQuery)
-                    ->where(
-                        'status',
-                        'RESOLVED'
-                    )
-                    ->count();
+                (int) ($findingStats?->resolved_findings ?? 0);
 
             $ignoredFindings =
-                (clone $findingQuery)
-                    ->where(
-                        'status',
-                        'IGNORED'
-                    )
-                    ->count();
-
-            /*
-             * =================================================
-             * ACTIVE SEVERITY
-             * =================================================
-             */
+                (int) ($findingStats?->ignored_findings ?? 0);
 
             $critical =
-                (clone $findingQuery)
-                    ->where(
-                        'status',
-                        'OPEN'
-                    )
-                    ->where(
-                        'severity',
-                        'CRITICAL'
-                    )
-                    ->count();
+                (int) ($findingStats?->critical_findings ?? 0);
 
             $high =
-                (clone $findingQuery)
-                    ->where(
-                        'status',
-                        'OPEN'
-                    )
-                    ->where(
-                        'severity',
-                        'HIGH'
-                    )
-                    ->count();
+                (int) ($findingStats?->high_findings ?? 0);
 
             $medium =
-                (clone $findingQuery)
-                    ->where(
-                        'status',
-                        'OPEN'
-                    )
-                    ->where(
-                        'severity',
-                        'MEDIUM'
-                    )
-                    ->count();
+                (int) ($findingStats?->medium_findings ?? 0);
 
             $low =
-                (clone $findingQuery)
-                    ->where(
-                        'status',
-                        'OPEN'
-                    )
-                    ->where(
-                        'severity',
-                        'LOW'
-                    )
-                    ->count();
+                (int) ($findingStats?->low_findings ?? 0);
 
             /*
              * =================================================
@@ -323,73 +327,82 @@ class SecurityDashboardController extends Controller
             );
 
         /*
-         * Total seluruh vulnerability alerts.
-         */
+        * =====================================================
+        * ALERT AGGREGATE STATISTICS
+        * =====================================================
+        */
+        $alertStats =
+            (clone $alertQuery)
+                ->selectRaw(
+                    "
+                    COUNT(*) AS total_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'OPEN'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS total_open_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'OPEN'
+                                AND severity = 'CRITICAL'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS critical_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'OPEN'
+                                AND severity = 'HIGH'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS high_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'RESOLVED'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS resolved_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN acknowledged_at IS NOT NULL
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS acknowledged_alerts
+                    "
+                )
+                ->first();
 
         $totalAlerts =
-            (clone $alertQuery)
-                ->count();
-
-        /*
-         * Open alerts.
-         */
+            (int) ($alertStats?->total_alerts ?? 0);
 
         $totalOpenAlerts =
-            (clone $alertQuery)
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
-
-        /*
-         * Critical open alerts.
-         */
+            (int) ($alertStats?->total_open_alerts ?? 0);
 
         $criticalAlerts =
-            (clone $alertQuery)
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->where(
-                    'severity',
-                    'CRITICAL'
-                )
-                ->count();
-
-        /*
-         * High open alerts.
-         */
+            (int) ($alertStats?->critical_alerts ?? 0);
 
         $highAlerts =
-            (clone $alertQuery)
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->where(
-                    'severity',
-                    'HIGH'
-                )
-                ->count();
-
-        /*
-         * Resolved alerts.
-         */
+            (int) ($alertStats?->high_alerts ?? 0);
 
         $resolvedAlerts =
-            (clone $alertQuery)
-                ->where(
-                    'status',
-                    'RESOLVED'
-                )
-                ->count();
+            (int) ($alertStats?->resolved_alerts ?? 0);
+
+        $acknowledgedAlerts =
+            (int) ($alertStats?->acknowledged_alerts ?? 0);
 
         /*
-         * Recent alerts.
-         */
-
+        * Recent alerts.
+        */
         $recentAlerts =
             (clone $alertQuery)
                 ->orderByRaw(
@@ -407,17 +420,6 @@ class SecurityDashboardController extends Controller
                 ->latest('id')
                 ->limit(8)
                 ->get();
-
-        /*
-         * =====================================================
-         * ALERT LIFECYCLE ANALYTICS
-         * =====================================================
-         */
-
-        $acknowledgedAlerts =
-            (clone $alertQuery)
-                ->whereNotNull('acknowledged_at')
-                ->count();
 
         $acknowledgementRate = $totalAlerts > 0
             ? round(($acknowledgedAlerts / $totalAlerts) * 100, 1)
@@ -490,15 +492,59 @@ class SecurityDashboardController extends Controller
             ->limit(8)
             ->get();
 
-        $breachedSlaAlerts = (clone $alertQuery)
-            ->whereIn('status', ['OPEN', 'ACKNOWLEDGED', 'INVESTIGATING'])
-            ->whereResponseSlaStatus('BREACHED')
-            ->count();
+        $slaEvaluatedAt =
+            now();
 
-        $dueSoonSlaAlerts = (clone $alertQuery)
-            ->whereIn('status', ['OPEN', 'ACKNOWLEDGED', 'INVESTIGATING'])
-            ->whereResponseSlaStatus('DUE_SOON')
-            ->count();
+        $activeAlertSlaQuery =
+            (clone $alertQuery)
+                ->whereIn(
+                    'status',
+                    [
+                        'OPEN',
+                        'ACKNOWLEDGED',
+                        'INVESTIGATING',
+                    ]
+                );
+
+        $slaStats =
+            DB::query()
+                ->selectSub(
+                    (clone $activeAlertSlaQuery)
+                        ->whereResponseSlaStatus(
+                            'BREACHED',
+                            $slaEvaluatedAt
+                        )
+                        ->selectRaw(
+                            'COUNT(*)'
+                        ),
+                    'breached_sla_alerts'
+                )
+                ->selectSub(
+                    (clone $activeAlertSlaQuery)
+                        ->whereResponseSlaStatus(
+                            'DUE_SOON',
+                            $slaEvaluatedAt
+                        )
+                        ->selectRaw(
+                            'COUNT(*)'
+                        ),
+                    'due_soon_sla_alerts'
+                )
+                ->first();
+
+        $breachedSlaAlerts =
+            (int) (
+                $slaStats
+                    ?->breached_sla_alerts
+                ?? 0
+            );
+
+        $dueSoonSlaAlerts =
+            (int) (
+                $slaStats
+                    ?->due_soon_sla_alerts
+                ?? 0
+            );
 
         /*
          * =====================================================
@@ -580,50 +626,160 @@ class SecurityDashboardController extends Controller
         $incidentQuery = SecurityIncident::query()
             ->forTeam($teamId);
 
-        $totalIncidents = (clone $incidentQuery)->count();
+        /*
+        * =====================================================
+        * INCIDENT AGGREGATE STATISTICS
+        * =====================================================
+        */
+        $incidentStats =
+            (clone $incidentQuery)
+                ->selectRaw(
+                    "
+                    COUNT(*) AS total_incidents,
 
-        $closedIncidents = (clone $incidentQuery)
-            ->where('status', 'CLOSED')
-            ->count();
+                    SUM(
+                        CASE
+                            WHEN status != 'CLOSED'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS active_incidents,
 
-        $activeIncidents = (clone $incidentQuery)
-            ->where('status', '!=', 'CLOSED')
-            ->count();
+                    SUM(
+                        CASE
+                            WHEN status = 'CLOSED'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS closed_incidents,
 
-        $criticalIncidents = (clone $incidentQuery)
-            ->where('status', '!=', 'CLOSED')
-            ->where('severity', 'CRITICAL')
-            ->count();
+                    SUM(
+                        CASE
+                            WHEN status != 'CLOSED'
+                                AND severity = 'CRITICAL'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS critical_incidents,
 
-        $highIncidents = (clone $incidentQuery)
-            ->where('status', '!=', 'CLOSED')
-            ->where('severity', 'HIGH')
-            ->count();
+                    SUM(
+                        CASE
+                            WHEN status != 'CLOSED'
+                                AND severity = 'HIGH'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS high_incidents,
 
-        $unassignedIncidents = (clone $incidentQuery)
-            ->where('status', '!=', 'CLOSED')
-            ->whereNull('assigned_to_user_id')
-            ->count();
+                    SUM(
+                        CASE
+                            WHEN status != 'CLOSED'
+                                AND assigned_to_user_id IS NULL
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS unassigned_incidents
+                    "
+                )
+                ->first();
 
-        $breachedIncidentSla = (clone $incidentQuery)
-            ->where('status', '!=', 'CLOSED')
-            ->whereResponseSlaStatus('BREACHED')
-            ->count();
+        $totalIncidents =
+            (int) ($incidentStats?->total_incidents ?? 0);
 
-        $dueSoonIncidentSla = (clone $incidentQuery)
-            ->where('status', '!=', 'CLOSED')
-            ->whereResponseSlaStatus('DUE_SOON')
-            ->count();
+        $activeIncidents =
+            (int) ($incidentStats?->active_incidents ?? 0);
 
-        $p1Incidents = (clone $incidentQuery)
-            ->where('status', '!=', 'CLOSED')
-            ->whereTriagePriority('P1')
-            ->count();
+        $closedIncidents =
+            (int) ($incidentStats?->closed_incidents ?? 0);
 
-        $p2Incidents = (clone $incidentQuery)
-            ->where('status', '!=', 'CLOSED')
-            ->whereTriagePriority('P2')
-            ->count();
+        $criticalIncidents =
+            (int) ($incidentStats?->critical_incidents ?? 0);
+
+        $highIncidents =
+            (int) ($incidentStats?->high_incidents ?? 0);
+
+        $unassignedIncidents =
+            (int) ($incidentStats?->unassigned_incidents ?? 0);
+
+        $activeIncidentMetricQuery =
+            (clone $incidentQuery)
+                ->where(
+                    'status',
+                    '!=',
+                    'CLOSED'
+                );
+
+        $incidentOperationalStats =
+            DB::query()
+                ->selectSub(
+                    (clone $activeIncidentMetricQuery)
+                        ->whereResponseSlaStatus(
+                            'BREACHED'
+                        )
+                        ->selectRaw(
+                            'COUNT(*)'
+                        ),
+                    'breached_incident_sla'
+                )
+                ->selectSub(
+                    (clone $activeIncidentMetricQuery)
+                        ->whereResponseSlaStatus(
+                            'DUE_SOON'
+                        )
+                        ->selectRaw(
+                            'COUNT(*)'
+                        ),
+                    'due_soon_incident_sla'
+                )
+                ->selectSub(
+                    (clone $activeIncidentMetricQuery)
+                        ->whereTriagePriority(
+                            'P1'
+                        )
+                        ->selectRaw(
+                            'COUNT(*)'
+                        ),
+                    'p1_incidents'
+                )
+                ->selectSub(
+                    (clone $activeIncidentMetricQuery)
+                        ->whereTriagePriority(
+                            'P2'
+                        )
+                        ->selectRaw(
+                            'COUNT(*)'
+                        ),
+                    'p2_incidents'
+                )
+                ->first();
+
+        $breachedIncidentSla =
+            (int) (
+                $incidentOperationalStats
+                    ?->breached_incident_sla
+                ?? 0
+            );
+
+        $dueSoonIncidentSla =
+            (int) (
+                $incidentOperationalStats
+                    ?->due_soon_incident_sla
+                ?? 0
+            );
+
+        $p1Incidents =
+            (int) (
+                $incidentOperationalStats
+                    ?->p1_incidents
+                ?? 0
+            );
+
+        $p2Incidents =
+            (int) (
+                $incidentOperationalStats
+                    ?->p2_incidents
+                ?? 0
+            );
 
         $recentIncidents = (clone $incidentQuery)
             ->with([

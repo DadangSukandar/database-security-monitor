@@ -4,13 +4,53 @@ namespace Tests\Feature;
 
 use App\Models\SecurityAlert;
 use App\Models\SecurityIncident;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SecurityIncidentMetricsTest extends TestCase
 {
+    private Team $team;
+
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->team =
+            Team::factory()->create();
+    }
+
+    private function actingAsTeamUser(): User
+    {
+        $user =
+            User::factory()->create();
+
+        $this->team
+            ->members()
+            ->attach(
+                $user->id,
+                [
+                    'role' => 'admin',
+                ]
+            );
+
+        $user->forceFill([
+            'current_team_id' => $this->team->id,
+        ])->save();
+
+        $user->unsetRelation(
+            'currentTeam'
+        );
+
+        $user->refresh();
+
+        $this->actingAs($user);
+
+        return $user;
+    }
 
     private function createAlert(
         array $attributes = []
@@ -38,24 +78,46 @@ class SecurityIncidentMetricsTest extends TestCase
 
         $alert = $this->createAlert();
 
-        return SecurityIncident::query()->create(array_merge([
-            'incident_number' => sprintf(
-                'INC-%s-%04d',
-                now()->format('Ymd'),
-                $sequence
-            ),
-            'security_alert_id' => $alert->id,
-            'title' => 'Incident metrics test',
-            'description' => 'Incident used for operational metrics.',
-            'severity' => 'HIGH',
-            'status' => 'OPEN',
-            'opened_at' => now(),
-        ], $attributes));
+        $incident =
+            new SecurityIncident(
+                array_merge(
+                    [
+                        'incident_number' => sprintf(
+                            'INC-%s-%04d',
+                            now()->format('Ymd'),
+                            $sequence
+                        ),
+                        'security_alert_id' => $alert->id,
+                        'title' => 'Incident metrics test',
+                        'description' => 'Incident used for operational metrics.',
+                        'severity' => 'HIGH',
+                        'status' => 'OPEN',
+                        'opened_at' => now(),
+                    ],
+                    $attributes
+                )
+            );
+
+        $incident->team_id =
+            $this->team->id;
+
+        $incident->save();
+
+        return $incident;
+
     }
 
     public function test_incident_index_exposes_operational_metrics(): void
     {
-        $user = User::factory()->create();
+        $user =
+            $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $this->createIncident([
             'severity' => 'CRITICAL',
@@ -83,9 +145,16 @@ class SecurityIncidentMetricsTest extends TestCase
             'closed_at' => now(),
         ]);
 
-        $response = $this
-            ->actingAs($user)
-            ->get(route('security-incidents.index'));
+        $response =
+
+        $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $response
             ->assertOk()
@@ -105,7 +174,15 @@ class SecurityIncidentMetricsTest extends TestCase
 
     public function test_closed_incidents_are_excluded_from_active_metrics(): void
     {
-        $user = User::factory()->create();
+        $user =
+            $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $this->createIncident([
             'severity' => 'CRITICAL',
@@ -113,9 +190,14 @@ class SecurityIncidentMetricsTest extends TestCase
             'closed_at' => now(),
         ]);
 
-        $response = $this
-            ->actingAs($user)
-            ->get(route('security-incidents.index'));
+        $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $response
             ->assertOk()
@@ -131,7 +213,15 @@ class SecurityIncidentMetricsTest extends TestCase
 
     public function test_critical_and_high_metric_only_counts_active_incidents(): void
     {
-        $user = User::factory()->create();
+        $user =
+            $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $this->createIncident([
             'severity' => 'CRITICAL',
@@ -154,9 +244,14 @@ class SecurityIncidentMetricsTest extends TestCase
             'closed_at' => now(),
         ]);
 
-        $response = $this
-            ->actingAs($user)
-            ->get(route('security-incidents.index'));
+        $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $response
             ->assertOk()
@@ -168,7 +263,15 @@ class SecurityIncidentMetricsTest extends TestCase
 
     public function test_unassigned_metric_only_counts_active_unassigned_incidents(): void
     {
-        $user = User::factory()->create();
+        $user =
+            $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
         $assignee = User::factory()->create();
 
         $this->createIncident([
@@ -193,9 +296,15 @@ class SecurityIncidentMetricsTest extends TestCase
             'closed_at' => now(),
         ]);
 
-        $response = $this
-            ->actingAs($user)
-            ->get(route('security-incidents.index'));
+        $user =
+            $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $response
             ->assertOk()
@@ -207,7 +316,15 @@ class SecurityIncidentMetricsTest extends TestCase
 
     public function test_metrics_do_not_follow_incident_list_filters(): void
     {
-        $user = User::factory()->create();
+        $user =
+            $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $this->createIncident([
             'incident_number' => 'INC-FILTER-0001',
@@ -228,11 +345,18 @@ class SecurityIncidentMetricsTest extends TestCase
             'closed_at' => now(),
         ]);
 
-        $response = $this
-            ->actingAs($user)
-            ->get(route('security-incidents.index', [
-                'status' => 'CLOSED',
-            ]));
+        $user =
+            $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index',
+                    [
+                        'status' => 'CLOSED',
+                    ]
+                )
+            );
 
         $response
             ->assertOk()
@@ -253,16 +377,34 @@ class SecurityIncidentMetricsTest extends TestCase
 
     public function test_guest_cannot_access_incident_metrics_page(): void
     {
-        $response = $this->get(
-            route('security-incidents.index')
-        );
+        $this->app['auth']
+            ->guard()
+            ->logout();
+
+        $this->app['auth']
+            ->forgetGuards();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $response->assertRedirect();
     }
 
     public function test_oldest_active_metric_uses_longest_running_active_incident(): void
     {
-        $user = User::factory()->create();
+        $user =
+            $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $this->actingAs($user);
 
@@ -298,7 +440,15 @@ class SecurityIncidentMetricsTest extends TestCase
 
     public function test_incident_index_exposes_active_sla_metrics(): void
     {
-        $user = User::factory()->create();
+        $user =
+            $this->actingAsTeamUser();
+
+        $response =
+            $this->get(
+                route(
+                    'security-incidents.index'
+                )
+            );
 
         $this->actingAs($user);
 

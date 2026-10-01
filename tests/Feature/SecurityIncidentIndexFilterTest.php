@@ -14,6 +14,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 {
     use RefreshDatabase;
 
+    private ?Team $currentTeam = null;
+
     private function createAlert(
         array $attributes = []
     ): SecurityAlert {
@@ -32,19 +34,37 @@ class SecurityIncidentIndexFilterTest extends TestCase
     }
 
     private function createIncident(
+
         array $attributes = []
     ): SecurityIncident {
+
+        if ($this->currentTeam === null) {
+            throw new \RuntimeException(
+                'Current test team has not been prepared.'
+            );
+        }
+
         $alert = $this->createAlert();
 
-        return SecurityIncident::query()->create(array_merge([
-            'incident_number' => 'INC-20260902-0001',
-            'security_alert_id' => $alert->id,
-            'title' => 'Database privilege incident',
-            'description' => 'Security incident for testing.',
-            'severity' => 'HIGH',
-            'status' => 'OPEN',
-            'opened_at' => now(),
-        ], $attributes));
+        $incident =
+            new SecurityIncident(
+                array_merge(
+                    [
+                        'incident_number' => 'INC-20260902-0001',
+                        'security_alert_id' => $alert->id,
+                        'title' => 'Database privilege incident',
+                        'description' => 'Security incident for testing.',
+                        'severity' => 'HIGH',
+                        'status' => 'OPEN',
+                        'opened_at' => now(),
+                    ], $attributes));
+
+        $incident->team_id =
+            $this->currentTeam->id;
+
+        $incident->save();
+
+        return $incident;
     }
 
     private function attachUserToTeam(
@@ -59,7 +79,9 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     private function createUserWithCurrentTeam(): array
     {
-        $user = User::factory()->create();
+        $user =
+            User::factory()->create();
+
         $team = Team::factory()->create();
 
         $this->attachUserToTeam(
@@ -71,6 +93,9 @@ class SecurityIncidentIndexFilterTest extends TestCase
             $user->switchTeam($team)
         );
 
+        $this->currentTeam =
+            $team;
+
         return [
             $user,
             $team,
@@ -79,7 +104,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_authenticated_user_can_view_incident_index(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+            $this->createUserWithCurrentTeam();
 
         $incident = $this->createIncident();
 
@@ -95,7 +121,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_searches_incident_number(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $matching = $this->createIncident([
             'incident_number' => 'INC-20260902-0101',
@@ -121,7 +148,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_searches_incident_title(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $matching = $this->createIncident([
             'incident_number' => 'INC-20260902-0101',
@@ -147,7 +175,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_search_term_is_trimmed(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $matching = $this->createIncident([
             'incident_number' => 'INC-20260902-0101',
@@ -167,7 +196,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_filters_by_status(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $open = $this->createIncident([
             'incident_number' => 'INC-20260902-0101',
@@ -193,7 +223,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_filters_by_severity(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $critical = $this->createIncident([
             'incident_number' => 'INC-20260902-0101',
@@ -260,7 +291,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_rejects_pic_outside_current_team(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $outsider = User::factory()->create();
 
@@ -277,7 +309,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_rejects_non_numeric_pic_filter(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $response = $this
             ->actingAs($user)
@@ -292,7 +325,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_filters_unassigned_incidents(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $assignee = User::factory()->create();
 
@@ -366,7 +400,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_rejects_invalid_status_filter(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $response = $this
             ->actingAs($user)
@@ -381,7 +416,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_rejects_invalid_severity_filter(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $response = $this
             ->actingAs($user)
@@ -468,7 +504,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_filters_by_triage_priority(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $now = now();
 
@@ -498,7 +535,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_filters_sla_promoted_priority(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $now = now();
 
@@ -528,7 +566,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_filters_closed_incidents_as_none_priority(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+    $this->createUserWithCurrentTeam();
 
         $now = now();
 
@@ -561,7 +600,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_rejects_invalid_priority_filter(): void
     {
-        [$user] = $this->createUserWithCurrentTeam();
+        [$user, $team] =
+            $this->createUserWithCurrentTeam();
 
         $response = $this
             ->actingAs($user)
@@ -575,7 +615,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_filters_breached_response_sla(): void
     {
-        $user = User::factory()->create();
+        [$user, $team] =
+            $this->createUserWithCurrentTeam();
 
         $breached = $this->createIncident([
             'incident_number' => 'INC-SLA-BREACHED-0001',
@@ -609,7 +650,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_filters_due_soon_response_sla(): void
     {
-        $user = User::factory()->create();
+        [$user, $team] =
+            $this->createUserWithCurrentTeam();
 
         $dueSoon = $this->createIncident([
             'incident_number' => 'INC-SLA-DUE-0001',
@@ -643,7 +685,8 @@ class SecurityIncidentIndexFilterTest extends TestCase
 
     public function test_it_rejects_invalid_sla_filter(): void
     {
-        $user = User::factory()->create();
+        $user =
+            User::factory()->create();
 
         $response = $this
             ->actingAs($user)

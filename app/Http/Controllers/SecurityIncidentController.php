@@ -115,31 +115,65 @@ class SecurityIncidentController extends Controller
             }
         }
 
+        $incidentStats =
+            (clone $incidentQuery)
+                ->selectRaw(
+                    "
+                    SUM(
+                        CASE
+                            WHEN status != 'CLOSED'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS active_incidents,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'OPEN'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS open_incidents,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'INVESTIGATING'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS investigating_incidents,
+
+                    SUM(
+                        CASE
+                            WHEN status != 'CLOSED'
+                                AND severity IN ('CRITICAL', 'HIGH')
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS critical_high_incidents,
+
+                    SUM(
+                        CASE
+                            WHEN status != 'CLOSED'
+                                AND assigned_to_user_id IS NULL
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS unassigned_incidents
+                    "
+                )
+                ->first();
+
         $incidentMetrics = [
-            'active' => (clone $incidentQuery)
-                ->where('status', '!=', 'CLOSED')
-                ->count(),
+            'active' => (int) ($incidentStats?->active_incidents ?? 0),
 
-            'open' => (clone $incidentQuery)
-                ->where('status', 'OPEN')
-                ->count(),
+            'open' => (int) ($incidentStats?->open_incidents ?? 0),
 
-            'investigating' => (clone $incidentQuery)
-                ->where('status', 'INVESTIGATING')
-                ->count(),
+            'investigating' => (int) ($incidentStats?->investigating_incidents ?? 0),
 
-            'critical_high' => (clone $incidentQuery)
-                ->where('status', '!=', 'CLOSED')
-                ->whereIn('severity', [
-                    'CRITICAL',
-                    'HIGH',
-                ])
-                ->count(),
+            'critical_high' => (int) ($incidentStats?->critical_high_incidents ?? 0),
 
-            'unassigned' => (clone $incidentQuery)
-                ->where('status', '!=', 'CLOSED')
-                ->whereNull('assigned_to_user_id')
-                ->count(),
+            'unassigned' => (int) ($incidentStats?->unassigned_incidents ?? 0),
         ];
 
         $oldestActiveIncident = (clone $incidentQuery)
