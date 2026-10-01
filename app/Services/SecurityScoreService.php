@@ -21,64 +21,72 @@ class SecurityScoreService
         |--------------------------------------------------------------------------
         */
 
-        $query = SecurityFinding::query()
-            ->forTeam($teamId)
-            ->where(
-                'status',
-                'OPEN'
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Filter berdasarkan database connection
-        |--------------------------------------------------------------------------
-        */
+        $query =
+            SecurityFinding::query()
+                ->forTeam($teamId)
+                ->where(
+                    'status',
+                    'OPEN'
+                );
 
         if ($connection !== null) {
-
             $query->where(
                 'database_connection_id',
                 $connection->id
             );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Ambil findings
-        |--------------------------------------------------------------------------
-        */
+        $stats =
+            $query
+                ->selectRaw(
+                    "
+                    COUNT(*) AS total,
+                    SUM(
+                        CASE
+                            WHEN severity = 'CRITICAL'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS critical,
+                    SUM(
+                        CASE
+                            WHEN severity = 'HIGH'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS high,
+                    SUM(
+                        CASE
+                            WHEN severity = 'MEDIUM'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS medium,
+                    SUM(
+                        CASE
+                            WHEN severity = 'LOW'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS low
+                    "
+                )
+                ->first();
 
-        $findings = $query->get();
+        $total =
+            (int) ($stats?->total ?? 0);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Hitung severity
-        |--------------------------------------------------------------------------
-        */
+        $critical =
+            (int) ($stats?->critical ?? 0);
 
-        $critical = $findings
-            ->where('severity', 'CRITICAL')
-            ->count();
+        $high =
+            (int) ($stats?->high ?? 0);
 
-        $high = $findings
-            ->where('severity', 'HIGH')
-            ->count();
+        $medium =
+            (int) ($stats?->medium ?? 0);
 
-        $medium = $findings
-            ->where('severity', 'MEDIUM')
-            ->count();
-
-        $low = $findings
-            ->where('severity', 'LOW')
-            ->count();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Total
-        |--------------------------------------------------------------------------
-        */
-
-        $total = $findings->count();
+        $low =
+            (int) ($stats?->low ?? 0);
 
         /*
         |--------------------------------------------------------------------------

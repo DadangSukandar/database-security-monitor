@@ -7,6 +7,7 @@ use App\Models\SecurityFinding;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class DashboardTenantIsolationTest extends TestCase
@@ -277,5 +278,65 @@ class DashboardTenantIsolationTest extends TestCase
         $finding->save();
 
         return $finding;
+    }
+
+    public function test_dashboard_does_not_issue_repeated_security_finding_queries(): void
+    {
+        $this->actingAsTeamUser();
+
+        $connection =
+            $this->createConnection(
+                $this->team,
+                'Query Budget Database',
+                'query_budget_database'
+            );
+
+        foreach (range(1, 30) as $index) {
+            $this->createFinding(
+                $this->team,
+                $connection,
+                [
+                    'severity' =>
+                        $index % 2 === 0
+                            ? 'HIGH'
+                            : 'LOW',
+
+                    'title' =>
+                        'Query Budget Finding '.$index,
+                ]
+            );
+        }
+
+        $queries = [];
+
+        DB::listen(
+            function ($query) use (&$queries): void {
+                if (
+                    str_contains(
+                        strtolower($query->sql),
+                        'security_findings'
+                    )
+                ) {
+                    $queries[] =
+                        $query->sql;
+                }
+            }
+        );
+
+        $this->get(
+            route('dashboard')
+        )
+            ->assertOk();
+
+        $this->assertLessThanOrEqual(
+            2,
+            count($queries),
+            'Dashboard melakukan terlalu banyak query ke security_findings: '.
+            PHP_EOL.
+            implode(
+                PHP_EOL,
+                $queries
+            )
+        );
     }
 }

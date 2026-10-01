@@ -175,56 +175,89 @@ class SecurityAlertController extends Controller
             ->withQueryString();
 
         /*
-         * STATISTICS
-         */
+        * STATISTICS
+        */
+        $alertStats =
+            SecurityAlert::query()
+                ->forTeam($teamId)
+                ->canonical()
+                ->selectRaw(
+                    "
+                    COUNT(*) AS total_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'OPEN'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS open_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'ACKNOWLEDGED'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS acknowledged_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'INVESTIGATING'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS investigating_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'RESOLVED'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS resolved_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'OPEN'
+                                AND severity = 'CRITICAL'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS critical_alerts,
+
+                    SUM(
+                        CASE
+                            WHEN status = 'OPEN'
+                                AND severity = 'HIGH'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS high_alerts
+                    "
+                )
+                ->first();
+
         $totalAlerts =
-            SecurityAlert::query()->forTeam($teamId)->canonical()->count();
+            (int) ($alertStats?->total_alerts ?? 0);
 
         $openAlerts =
-            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
-                'status',
-                'OPEN'
-            )->count();
+            (int) ($alertStats?->open_alerts ?? 0);
 
         $acknowledgedAlerts =
-            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
-                'status',
-                'ACKNOWLEDGED'
-            )->count();
+            (int) ($alertStats?->acknowledged_alerts ?? 0);
 
         $investigatingAlerts =
-            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
-                'status',
-                'INVESTIGATING'
-            )->count();
+            (int) ($alertStats?->investigating_alerts ?? 0);
 
         $resolvedAlerts =
-            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
-                'status',
-                'RESOLVED'
-            )->count();
+            (int) ($alertStats?->resolved_alerts ?? 0);
 
         $criticalAlerts =
-            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
-                'status',
-                'OPEN'
-            )
-                ->where(
-                    'severity',
-                    'CRITICAL'
-                )
-                ->count();
+            (int) ($alertStats?->critical_alerts ?? 0);
 
         $highAlerts =
-            SecurityAlert::query()->forTeam($teamId)->canonical()->where(
-                'status',
-                'OPEN'
-            )
-                ->where(
-                    'severity',
-                    'HIGH'
-                )
-                ->count();
+            (int) ($alertStats?->high_alerts ?? 0);
 
         /*
          * FILTER OPTIONS

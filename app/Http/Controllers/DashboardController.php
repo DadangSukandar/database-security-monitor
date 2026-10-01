@@ -72,35 +72,20 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $criticalFindings = (clone $teamFindingQuery)
-            ->where('status', 'OPEN')
-            ->where('severity', 'CRITICAL')
-            ->count();
+        $criticalFindings =
+            (int) $securityScore['critical'];
 
-        $highFindings = (clone $teamFindingQuery)
-            ->where('status', 'OPEN')
-            ->where('severity', 'HIGH')
-            ->count();
+        $highFindings =
+            (int) $securityScore['high'];
 
-        $mediumFindings = (clone $teamFindingQuery)
-            ->where('status', 'OPEN')
-            ->where('severity', 'MEDIUM')
-            ->count();
+        $mediumFindings =
+            (int) $securityScore['medium'];
 
-        $lowFindings = (clone $teamFindingQuery)
-            ->where('status', 'OPEN')
-            ->where('severity', 'LOW')
-            ->count();
+        $lowFindings =
+            (int) $securityScore['low'];
 
-        /*
-        |--------------------------------------------------------------------------
-        | Total Findings
-        |--------------------------------------------------------------------------
-        */
-
-        $totalFindings = (clone $teamFindingQuery)
-            ->where('status', 'OPEN')
-            ->count();
+        $totalFindings =
+            (int) $securityScore['total'];
 
         /*
         |--------------------------------------------------------------------------
@@ -108,11 +93,10 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $recentFindings = (clone $teamFindingQuery)
-            ->where('status', 'OPEN')
-            ->latest('detected_at')
-            ->limit(5)
-            ->get();
+        $recentFindings =
+            $recentSecurityFindings
+                ->take(5)
+                ->values();
 
         /*
         |--------------------------------------------------------------------------
