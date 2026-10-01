@@ -9,11 +9,9 @@ class SecurityScoreService
 {
     /**
      * Calculate security score.
-     *
-     * @param DatabaseConnection|null $connection
-     * @return array
      */
     public function calculate(
+        int $teamId,
         ?DatabaseConnection $connection = null
     ): array {
 
@@ -24,8 +22,11 @@ class SecurityScoreService
         */
 
         $query = SecurityFinding::query()
-            ->where('status', 'OPEN');
-
+            ->forTeam($teamId)
+            ->where(
+                'status',
+                'OPEN'
+            );
 
         /*
         |--------------------------------------------------------------------------
@@ -41,7 +42,6 @@ class SecurityScoreService
             );
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Ambil findings
@@ -49,7 +49,6 @@ class SecurityScoreService
         */
 
         $findings = $query->get();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -73,7 +72,6 @@ class SecurityScoreService
             ->where('severity', 'LOW')
             ->count();
 
-
         /*
         |--------------------------------------------------------------------------
         | Total
@@ -81,7 +79,6 @@ class SecurityScoreService
         */
 
         $total = $findings->count();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -107,7 +104,6 @@ class SecurityScoreService
 
         $score -= $low * 2;
 
-
         /*
         |--------------------------------------------------------------------------
         | Pastikan score 0 - 100
@@ -121,7 +117,6 @@ class SecurityScoreService
                 $score
             )
         );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -146,7 +141,6 @@ class SecurityScoreService
             $level = 'CRITICAL';
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Return
@@ -155,26 +149,19 @@ class SecurityScoreService
 
         return [
 
-            'score' =>
-                $score,
+            'score' => $score,
 
-            'level' =>
-                $level,
+            'level' => $level,
 
-            'total' =>
-                $total,
+            'total' => $total,
 
-            'critical' =>
-                $critical,
+            'critical' => $critical,
 
-            'high' =>
-                $high,
+            'high' => $high,
 
-            'medium' =>
-                $medium,
+            'medium' => $medium,
 
-            'low' =>
-                $low,
+            'low' => $low,
 
         ];
     }

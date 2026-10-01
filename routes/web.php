@@ -38,12 +38,22 @@ Route::pattern('securityFinding', '[0-9]+');
 Route::get(
     '/',
     [DashboardController::class, 'index']
-)->name('home');
+)
+    ->middleware([
+        'auth',
+        EnsureCurrentTeamMembership::class,
+    ])
+    ->name('home');
 
 Route::get(
     '/dashboard',
     [DashboardController::class, 'index']
-)->name('dashboard');
+)
+    ->middleware([
+        'auth',
+        EnsureCurrentTeamMembership::class,
+    ])
+    ->name('dashboard');
 
 Route::middleware(['auth', EnsureCurrentTeamMembership::class])->group(function () {
     Route::resource(

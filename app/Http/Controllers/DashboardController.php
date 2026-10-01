@@ -3,28 +3,44 @@
 namespace App\Http\Controllers;
 
 use App\Models\DatabaseConnection;
-use App\Models\SecurityFinding;
 use App\Services\SecurityScoreService;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
     public function index(
+
         Request $request,
         SecurityScoreService $securityScoreService
     ) {
+
+        $teamId =
+            (int) $request->user()->current_team_id;
+
+        $teamConnectionQuery =
+            DatabaseConnection::query()
+                ->forTeam($teamId);
+
+        $teamFindingQuery =
+            (clone $teamFindingQuery)
+                ->forTeam($teamId);
         /*
         |--------------------------------------------------------------------------
         | Database Connections
         |--------------------------------------------------------------------------
         */
 
-        $totalConnections = DatabaseConnection::count();
+        $totalConnections =
+            (clone $teamConnectionQuery)
+                ->count();
 
-        $activeConnections = DatabaseConnection::query()
-            ->where('is_active', true)
-            ->count();
-
+        $activeConnections =
+            (clone $teamConnectionQuery)
+                ->where(
+                    'is_active',
+                    true
+                )
+                ->count();
 
         /*
         |--------------------------------------------------------------------------
@@ -32,8 +48,10 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $securityScore = $securityScoreService->calculate();
-
+        $securityScore =
+            $securityScoreService->calculate(
+                $teamId
+            );
 
         /*
         |--------------------------------------------------------------------------
@@ -41,12 +59,11 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $recentSecurityFindings = SecurityFinding::query()
+        $recentSecurityFindings = (clone $teamFindingQuery)
             ->where('status', 'OPEN')
             ->latest('detected_at')
             ->limit(10)
             ->get();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -54,26 +71,25 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $criticalFindings = SecurityFinding::query()
+        $criticalFindings = (clone $teamFindingQuery)
             ->where('status', 'OPEN')
             ->where('severity', 'CRITICAL')
             ->count();
 
-        $highFindings = SecurityFinding::query()
+        $highFindings = (clone $teamFindingQuery)
             ->where('status', 'OPEN')
             ->where('severity', 'HIGH')
             ->count();
 
-        $mediumFindings = SecurityFinding::query()
+        $mediumFindings = (clone $teamFindingQuery)
             ->where('status', 'OPEN')
             ->where('severity', 'MEDIUM')
             ->count();
 
-        $lowFindings = SecurityFinding::query()
+        $lowFindings = (clone $teamFindingQuery)
             ->where('status', 'OPEN')
             ->where('severity', 'LOW')
             ->count();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -81,10 +97,9 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $totalFindings = SecurityFinding::query()
+        $totalFindings = (clone $teamFindingQuery)
             ->where('status', 'OPEN')
             ->count();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -92,12 +107,11 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $recentFindings = SecurityFinding::query()
+        $recentFindings = (clone $teamFindingQuery)
             ->where('status', 'OPEN')
             ->latest('detected_at')
             ->limit(5)
             ->get();
-
 
         /*
         |--------------------------------------------------------------------------
@@ -105,11 +119,11 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $databaseConnections = DatabaseConnection::query()
-            ->latest()
-            ->limit(10)
-            ->get();
-
+        $databaseConnections =
+            (clone $teamConnectionQuery)
+                ->latest()
+                ->limit(10)
+                ->get();
 
         /*
         |--------------------------------------------------------------------------
@@ -124,29 +138,21 @@ class DashboardController extends Controller
 
             'securityScore' => $securityScore,
 
-            'recentSecurityFindings' =>
-                $recentSecurityFindings,
+            'recentSecurityFindings' => $recentSecurityFindings,
 
-            'recentFindings' =>
-                $recentFindings,
+            'recentFindings' => $recentFindings,
 
-            'criticalFindings' =>
-                $criticalFindings,
+            'criticalFindings' => $criticalFindings,
 
-            'highFindings' =>
-                $highFindings,
+            'highFindings' => $highFindings,
 
-            'mediumFindings' =>
-                $mediumFindings,
+            'mediumFindings' => $mediumFindings,
 
-            'lowFindings' =>
-                $lowFindings,
+            'lowFindings' => $lowFindings,
 
-            'totalFindings' =>
-                $totalFindings,
+            'totalFindings' => $totalFindings,
 
-            'databaseConnections' =>
-                $databaseConnections,
+            'databaseConnections' => $databaseConnections,
         ]);
     }
 }

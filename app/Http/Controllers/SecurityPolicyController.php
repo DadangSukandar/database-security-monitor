@@ -13,7 +13,15 @@ class SecurityPolicyController extends Controller
      */
     public function index(Request $request)
     {
-        $query = SecurityPolicy::query();
+        $teamId =
+            (int) $request->user()->current_team_id;
+
+        $teamPolicyQuery =
+            SecurityPolicy::query()
+                ->forTeam($teamId);
+
+        $query =
+            clone $teamPolicyQuery;
 
         /*
         |--------------------------------------------------------------------------
@@ -80,22 +88,33 @@ class SecurityPolicyController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $totalPolicies = SecurityPolicy::count();
+        $totalPolicies =
+            (clone $teamPolicyQuery)
+                ->count();
 
-        $activePolicies = SecurityPolicy::where(
-            'is_active',
-            true
-        )->count();
+        $activePolicies =
+            (clone $teamPolicyQuery)
+                ->where(
+                    'is_active',
+                    true
+                )
+                ->count();
 
-        $inactivePolicies = SecurityPolicy::where(
-            'is_active',
-            false
-        )->count();
+        $inactivePolicies =
+            (clone $teamPolicyQuery)
+                ->where(
+                    'is_active',
+                    false
+                )
+                ->count();
 
-        $criticalPolicies = SecurityPolicy::where(
-            'severity',
-            'CRITICAL'
-        )->count();
+        $criticalPolicies =
+            (clone $teamPolicyQuery)
+                ->where(
+                    'severity',
+                    'CRITICAL'
+                )
+                ->count();
 
         /*
         |--------------------------------------------------------------------------
@@ -121,7 +140,6 @@ class SecurityPolicyController extends Controller
         );
     }
 
-
     /**
      * Show create form.
      */
@@ -131,7 +149,6 @@ class SecurityPolicyController extends Controller
             'security-policies.create'
         );
     }
-
 
     /**
      * Store new policy.
@@ -149,7 +166,15 @@ class SecurityPolicyController extends Controller
                 'required',
                 'string',
                 'max:100',
-                'unique:security_policies,code',
+                Rule::unique(
+                    'security_policies',
+                    'code'
+                )->where(
+                    fn ($query) => $query->where(
+                        'team_id',
+                        $teamId
+                    )
+                ),
             ],
 
             'rule_type' => [
@@ -194,7 +219,7 @@ class SecurityPolicyController extends Controller
 
         $conditions = null;
 
-        if (!empty($validated['conditions'])) {
+        if (! empty($validated['conditions'])) {
 
             $decoded = json_decode(
                 $validated['conditions'],
@@ -207,8 +232,7 @@ class SecurityPolicyController extends Controller
                 return back()
                     ->withInput()
                     ->withErrors([
-                        'conditions' =>
-                            'Conditions harus berupa JSON yang valid.'
+                        'conditions' => 'Conditions harus berupa JSON yang valid.',
                     ]);
             }
 
@@ -221,18 +245,29 @@ class SecurityPolicyController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        SecurityPolicy::create([
-            'name' => $validated['name'],
-            'code' => strtoupper(
-                $validated['code']
-            ),
-            'rule_type' => $validated['rule_type'],
-            'severity' => $validated['severity'],
-            'conditions' => $conditions,
-            'priority' => $validated['priority'],
-            'is_active' =>
-                $request->boolean('is_active'),
-        ]);
+        $securityPolicy =
+            new SecurityPolicy([
+                'name' => $validated['name'],
+
+                'code' => $validated['code'],
+
+                'rule_type' => $validated['rule_type'],
+
+                'severity' => $validated['severity'],
+
+                'conditions' => $conditions,
+
+                'priority' => $validated['priority'],
+
+                'is_active' => $request->boolean(
+                    'is_active'
+                ),
+            ]);
+
+        $securityPolicy->team_id =
+            $teamId;
+
+        $securityPolicy->save();
 
         return redirect()
             ->route('security-policies.index')
@@ -242,19 +277,23 @@ class SecurityPolicyController extends Controller
             );
     }
 
-
     /**
      * Show edit form.
      */
     public function edit(
+        Request $request,
         SecurityPolicy $securityPolicy
     ) {
+        $this->ensurePolicyBelongsToCurrentTeam(
+            $request,
+            $securityPolicy
+        );
+
         return view(
             'security-policies.edit',
             compact('securityPolicy')
         );
     }
-
 
     /**
      * Update policy.
@@ -263,6 +302,25 @@ class SecurityPolicyController extends Controller
         Request $request,
         SecurityPolicy $securityPolicy
     ) {
+
+        $this->ensurePolicyBelongsToCurrentTeam(
+            $request,
+            $securityPolicy
+        );
+
+        $teamId =
+            (int) $request->user()->current_team_id;
+
+        $request->merge([
+            'code' => strtoupper(
+                trim(
+                    (string) $request->input(
+                        'code'
+                    )
+                )
+            ),
+        ]);
+
         $validated = $request->validate([
             'name' => [
                 'required',
@@ -277,7 +335,16 @@ class SecurityPolicyController extends Controller
                 Rule::unique(
                     'security_policies',
                     'code'
-                )->ignore($securityPolicy->id),
+                )
+                    ->where(
+                        fn ($query) => $query->where(
+                            'team_id',
+                            $teamId
+                        )
+                    )
+                    ->ignore(
+                        $securityPolicy->id
+                    ),
             ],
 
             'rule_type' => [
@@ -322,7 +389,7 @@ class SecurityPolicyController extends Controller
 
         $conditions = null;
 
-        if (!empty($validated['conditions'])) {
+        if (! empty($validated['conditions'])) {
 
             $decoded = json_decode(
                 $validated['conditions'],
@@ -335,8 +402,7 @@ class SecurityPolicyController extends Controller
                 return back()
                     ->withInput()
                     ->withErrors([
-                        'conditions' =>
-                            'Conditions harus berupa JSON yang valid.'
+                        'conditions' => 'Conditions harus berupa JSON yang valid.',
                     ]);
             }
 
@@ -358,8 +424,7 @@ class SecurityPolicyController extends Controller
             'severity' => $validated['severity'],
             'conditions' => $conditions,
             'priority' => $validated['priority'],
-            'is_active' =>
-                $request->boolean('is_active'),
+            'is_active' => $request->boolean('is_active'),
         ]);
 
         return redirect()
@@ -370,13 +435,18 @@ class SecurityPolicyController extends Controller
             );
     }
 
-
     /**
      * Delete policy.
      */
     public function destroy(
+        Request $request,
         SecurityPolicy $securityPolicy
     ) {
+        $this->ensurePolicyBelongsToCurrentTeam(
+            $request,
+            $securityPolicy
+        );
+
         $securityPolicy->delete();
 
         return redirect()
@@ -387,21 +457,39 @@ class SecurityPolicyController extends Controller
             );
     }
 
-
     /**
      * Toggle policy status.
      */
     public function toggle(
+        Request $request,
         SecurityPolicy $securityPolicy
     ) {
+        $this->ensurePolicyBelongsToCurrentTeam(
+            $request,
+            $securityPolicy
+        );
         $securityPolicy->update([
-            'is_active' =>
-                !$securityPolicy->is_active,
+            'is_active' => ! $securityPolicy->is_active,
         ]);
 
         return back()->with(
             'success',
             'Status security policy berhasil diubah.'
+        );
+    }
+
+    private function ensurePolicyBelongsToCurrentTeam(
+        Request $request,
+        SecurityPolicy $securityPolicy
+    ): void {
+        $teamId =
+            $request->user()?->current_team_id;
+
+        abort_if(
+            $teamId === null ||
+            (int) $securityPolicy->team_id
+                !== (int) $teamId,
+            404
         );
     }
 }
