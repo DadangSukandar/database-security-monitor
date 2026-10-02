@@ -5,6 +5,7 @@ use App\Enums\DatabaseConnectionFailureType;
 use App\Enums\DatabaseConnectionHealthStatus;
 use App\Models\DatabaseActivity;
 use App\Models\DatabaseConnection;
+use App\Models\Team;
 use App\Services\DatabaseActivityLogger;
 use App\Services\DatabaseConnectorService;
 use App\Services\SecurityAlertService;
@@ -14,17 +15,36 @@ uses(RefreshDatabase::class);
 
 function activityFailureConnection(): DatabaseConnection
 {
-    return DatabaseConnection::query()->create([
-        'name' => 'Activity Failure Accuracy',
-        'driver' => 'mysql',
-        'host' => '127.0.0.1',
-        'port' => 3306,
-        'database' => 'activity_failure_test',
-        'username' => 'monitor',
-        'password' => null,
-        'schema' => null,
-        'is_active' => true,
-    ]);
+    $team =
+        Team::factory()->create();
+
+    $connection =
+        new DatabaseConnection([
+            'name' => 'Activity Failure Accuracy',
+
+            'driver' => 'mysql',
+
+            'host' => '127.0.0.1',
+
+            'port' => 3306,
+
+            'database' => 'activity_failure_test',
+
+            'username' => 'monitor',
+
+            'password' => null,
+
+            'schema' => null,
+
+            'is_active' => true,
+        ]);
+
+    $connection->team_id =
+        $team->id;
+
+    $connection->save();
+
+    return $connection;
 }
 
 function activityFailureLogger(): DatabaseActivityLogger

@@ -2,145 +2,312 @@
 
 use App\Models\DatabaseConnection;
 use App\Models\SecurityFinding;
+use App\Models\Team;
 use App\Models\User;
 
-test('dashboard can be accessed by guests', function () {
-    $response = $this->get(route('dashboard'));
+function dashboardTestActor(): array
+{
+    $user =
+        User::factory()->create();
 
-    $response->assertOk();
-    $response->assertViewIs('dashboard');
+    $team =
+        Team::factory()->create();
+
+    $team->members()->attach(
+        $user->id,
+        [
+            'role' => 'admin',
+        ]
+    );
+
+    expect(
+        $user->switchTeam($team)
+    )->toBeTrue();
+
+    return [
+        $user,
+        $team,
+    ];
+}
+
+function dashboardTestConnection(
+    Team $team,
+    array $attributes = []
+): DatabaseConnection {
+    $connection =
+        new DatabaseConnection(
+            array_merge([
+                'name' => 'Dashboard Database',
+
+                'driver' => 'mysql',
+
+                'host' => '127.0.0.1',
+
+                'port' => 3306,
+
+                'database' => 'dashboard_test',
+
+                'username' => 'root',
+
+                'password' => null,
+
+                'is_active' => true,
+            ], $attributes)
+        );
+
+    $connection->team_id =
+        $team->id;
+
+    $connection->save();
+
+    return $connection;
+}
+
+function dashboardTestFinding(
+    Team $team,
+    array $attributes = []
+): SecurityFinding {
+    $finding =
+        new SecurityFinding(
+            array_merge([
+                'finding_type' => 'TEST_FINDING',
+
+                'category' => 'SECURITY',
+
+                'severity' => 'HIGH',
+
+                'title' => 'Dashboard Test Finding',
+
+                'description' => 'Security finding for dashboard testing.',
+
+                'status' => 'OPEN',
+
+                'detected_at' => now(),
+            ], $attributes)
+        );
+
+    $finding->team_id =
+        $team->id;
+
+    $finding->save();
+
+    return $finding;
+}
+
+test('dashboard cannot be accessed by guests', function () {
+    $this
+        ->get(route('dashboard'))
+        ->assertRedirect();
 });
 
 test('authenticated users can visit the dashboard', function () {
-    $user = User::factory()->create();
+    [$user] =
+        dashboardTestActor();
 
-    $response = $this
-        ->actingAs($user)
-        ->get(route('dashboard'));
+    $response =
+        $this
+            ->actingAs($user)
+            ->get(route('dashboard'));
 
     $response->assertOk();
-    $response->assertViewIs('dashboard');
+
+    $response->assertViewIs(
+        'dashboard'
+    );
 });
 
 test('dashboard contains connection statistics', function () {
-    DatabaseConnection::create([
-        'name' => 'Active Database',
-        'driver' => 'mysql',
-        'host' => '127.0.0.1',
-        'port' => 3306,
-        'database' => 'test_active',
-        'username' => 'root',
-        'password' => null,
-        'is_active' => true,
-    ]);
+    [$user, $team] =
+        dashboardTestActor();
 
-    DatabaseConnection::create([
-        'name' => 'Inactive Database',
-        'driver' => 'mysql',
-        'host' => '127.0.0.1',
-        'port' => 3306,
-        'database' => 'test_inactive',
-        'username' => 'root',
-        'password' => null,
-        'is_active' => false,
-    ]);
+    dashboardTestConnection(
+        $team,
+        [
+            'name' => 'Active Database',
 
-    $response = $this->get(route('dashboard'));
+            'database' => 'test_active',
+
+            'is_active' => true,
+        ]
+    );
+
+    dashboardTestConnection(
+        $team,
+        [
+            'name' => 'Inactive Database',
+
+            'database' => 'test_inactive',
+
+            'is_active' => false,
+        ]
+    );
+
+    $response =
+        $this
+            ->actingAs($user)
+            ->get(route('dashboard'));
 
     $response->assertOk();
 
-    $response->assertViewHas('totalConnections', 2);
-    $response->assertViewHas('activeConnections', 1);
+    $response->assertViewHas(
+        'totalConnections',
+        2
+    );
+
+    $response->assertViewHas(
+        'activeConnections',
+        1
+    );
 });
 
 test('dashboard contains security finding statistics', function () {
-    SecurityFinding::create([
-        'finding_type' => 'TEST_CRITICAL',
-        'category' => 'SECURITY',
-        'severity' => 'CRITICAL',
-        'title' => 'Critical Test Finding',
-        'description' => 'Critical finding for dashboard testing.',
-        'status' => 'OPEN',
-        'detected_at' => now(),
-    ]);
+    [$user, $team] =
+        dashboardTestActor();
 
-    SecurityFinding::create([
-        'finding_type' => 'TEST_HIGH',
-        'category' => 'SECURITY',
-        'severity' => 'HIGH',
-        'title' => 'High Test Finding',
-        'description' => 'High finding for dashboard testing.',
-        'status' => 'OPEN',
-        'detected_at' => now(),
-    ]);
+    dashboardTestFinding(
+        $team,
+        [
+            'finding_type' => 'TEST_CRITICAL',
 
-    SecurityFinding::create([
-        'finding_type' => 'TEST_MEDIUM',
-        'category' => 'SECURITY',
-        'severity' => 'MEDIUM',
-        'title' => 'Medium Test Finding',
-        'description' => 'Medium finding for dashboard testing.',
-        'status' => 'OPEN',
-        'detected_at' => now(),
-    ]);
+            'severity' => 'CRITICAL',
 
-    SecurityFinding::create([
-        'finding_type' => 'TEST_LOW',
-        'category' => 'SECURITY',
-        'severity' => 'LOW',
-        'title' => 'Low Test Finding',
-        'description' => 'Low finding for dashboard testing.',
-        'status' => 'OPEN',
-        'detected_at' => now(),
-    ]);
+            'title' => 'Critical Test Finding',
 
-    SecurityFinding::create([
-        'finding_type' => 'TEST_RESOLVED',
-        'category' => 'SECURITY',
-        'severity' => 'CRITICAL',
-        'title' => 'Resolved Test Finding',
-        'description' => 'Resolved finding must not count as open.',
-        'status' => 'RESOLVED',
-        'detected_at' => now(),
-        'resolved_at' => now(),
-    ]);
+            'description' => 'Critical finding for dashboard testing.',
+        ]
+    );
 
-    $response = $this->get(route('dashboard'));
+    dashboardTestFinding(
+        $team,
+        [
+            'finding_type' => 'TEST_HIGH',
+
+            'severity' => 'HIGH',
+
+            'title' => 'High Test Finding',
+
+            'description' => 'High finding for dashboard testing.',
+        ]
+    );
+
+    dashboardTestFinding(
+        $team,
+        [
+            'finding_type' => 'TEST_MEDIUM',
+
+            'severity' => 'MEDIUM',
+
+            'title' => 'Medium Test Finding',
+
+            'description' => 'Medium finding for dashboard testing.',
+        ]
+    );
+
+    dashboardTestFinding(
+        $team,
+        [
+            'finding_type' => 'TEST_LOW',
+
+            'severity' => 'LOW',
+
+            'title' => 'Low Test Finding',
+
+            'description' => 'Low finding for dashboard testing.',
+        ]
+    );
+
+    dashboardTestFinding(
+        $team,
+        [
+            'finding_type' => 'TEST_RESOLVED',
+
+            'severity' => 'CRITICAL',
+
+            'title' => 'Resolved Test Finding',
+
+            'description' => 'Resolved finding must not count as open.',
+
+            'status' => 'RESOLVED',
+
+            'resolved_at' => now(),
+        ]
+    );
+
+    $response =
+        $this
+            ->actingAs($user)
+            ->get(route('dashboard'));
 
     $response->assertOk();
 
-    $response->assertViewHas('criticalFindings', 1);
-    $response->assertViewHas('highFindings', 1);
-    $response->assertViewHas('mediumFindings', 1);
-    $response->assertViewHas('lowFindings', 1);
-    $response->assertViewHas('totalFindings', 4);
+    $response->assertViewHas(
+        'criticalFindings',
+        1
+    );
+
+    $response->assertViewHas(
+        'highFindings',
+        1
+    );
+
+    $response->assertViewHas(
+        'mediumFindings',
+        1
+    );
+
+    $response->assertViewHas(
+        'lowFindings',
+        1
+    );
+
+    $response->assertViewHas(
+        'totalFindings',
+        4
+    );
 });
 
 test('dashboard contains recent open security findings', function () {
+    [$user, $team] =
+        dashboardTestActor();
+
     for ($i = 1; $i <= 3; $i++) {
-        SecurityFinding::create([
-            'finding_type' => 'TEST_OPEN_'.$i,
-            'category' => 'SECURITY',
-            'severity' => 'HIGH',
-            'title' => 'Open Test Finding '.$i,
-            'description' => 'Open finding for dashboard test.',
-            'status' => 'OPEN',
-            'detected_at' => now()->subMinutes($i),
-        ]);
+        dashboardTestFinding(
+            $team,
+            [
+                'finding_type' => 'TEST_OPEN_'.$i,
+
+                'severity' => 'HIGH',
+
+                'title' => 'Open Test Finding '.$i,
+
+                'description' => 'Open finding for dashboard test.',
+
+                'detected_at' => now()->subMinutes($i),
+            ]
+        );
     }
 
-    SecurityFinding::create([
-        'finding_type' => 'TEST_RESOLVED',
-        'category' => 'SECURITY',
-        'severity' => 'HIGH',
-        'title' => 'Resolved Finding',
-        'description' => 'Should not appear in recent open findings.',
-        'status' => 'RESOLVED',
-        'detected_at' => now(),
-        'resolved_at' => now(),
-    ]);
+    dashboardTestFinding(
+        $team,
+        [
+            'finding_type' => 'TEST_RESOLVED',
 
-    $response = $this->get(route('dashboard'));
+            'severity' => 'HIGH',
+
+            'title' => 'Resolved Finding',
+
+            'description' => 'Should not appear in recent open findings.',
+
+            'status' => 'RESOLVED',
+
+            'resolved_at' => now(),
+        ]
+    );
+
+    $response =
+        $this
+            ->actingAs($user)
+            ->get(route('dashboard'));
 
     $response->assertOk();
 
@@ -156,7 +323,13 @@ test('dashboard contains recent open security findings', function () {
 });
 
 test('dashboard provides all required blade variables', function () {
-    $response = $this->get(route('dashboard'));
+    [$user] =
+        dashboardTestActor();
+
+    $response =
+        $this
+            ->actingAs($user)
+            ->get(route('dashboard'));
 
     $response->assertOk();
 

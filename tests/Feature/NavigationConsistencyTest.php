@@ -30,7 +30,7 @@ it('renders the shared dashboard navigation across application pages', function 
 })->with([
     'dashboard' => [
         'dashboard',
-        false,
+        true,
     ],
     'shared blade layout' => [
         'security-alerts.index',
