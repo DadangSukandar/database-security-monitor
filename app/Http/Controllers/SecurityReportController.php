@@ -136,25 +136,61 @@ class SecurityReportController extends Controller
         /*
         * Statistik keseluruhan.
         */
-        $totalAssessments =
+        $assessmentStats =
             (clone $teamAssessmentQuery)
-                ->count();
+                ->selectRaw(
+                    '
+                    COUNT(*) AS total_assessments,
+
+                    COALESCE(
+                        SUM(critical_count),
+                        0
+                    ) AS critical_findings,
+
+                    COALESCE(
+                        SUM(high_count),
+                        0
+                    ) AS high_findings,
+
+                    COALESCE(
+                        SUM(medium_count),
+                        0
+                    ) AS medium_findings,
+
+                    COALESCE(
+                        SUM(low_count),
+                        0
+                    ) AS low_findings,
+
+                    AVG(score) AS average_score
+                    '
+                )
+                ->first();
+
+        $totalAssessments =
+            (int) (
+                $assessmentStats?->total_assessments ?? 0
+            );
 
         $critical =
-            (clone $teamAssessmentQuery)
-                ->sum('critical_count');
+            (int) (
+                $assessmentStats?->critical_findings ?? 0
+            );
 
         $high =
-            (clone $teamAssessmentQuery)
-                ->sum('high_count');
+            (int) (
+                $assessmentStats?->high_findings ?? 0
+            );
 
         $medium =
-            (clone $teamAssessmentQuery)
-                ->sum('medium_count');
+            (int) (
+                $assessmentStats?->medium_findings ?? 0
+            );
 
         $low =
-            (clone $teamAssessmentQuery)
-                ->sum('low_count');
+            (int) (
+                $assessmentStats?->low_findings ?? 0
+            );
 
         $totalFindings =
             $critical +
@@ -162,34 +198,27 @@ class SecurityReportController extends Controller
             $medium +
             $low;
 
+        $averageScore =
+            $assessmentStats?->average_score !== null
+                ? round(
+                    (float) $assessmentStats->average_score,
+                    1
+                )
+                : 0;
+
         /*
         * Assessment terakhir.
         */
         $latestAssessment =
             (clone $teamAssessmentQuery)
-                ->with('databaseConnection')
                 ->latest('scanned_at')
                 ->first();
-
-        /*
-        * Average score.
-        */
-        $averageScore =
-            (clone $teamAssessmentQuery)
-                ->whereNotNull('score')
-                ->avg('score');
-
-        $averageScore =
-            $averageScore !== null
-                ? round($averageScore, 1)
-                : 0;
 
         /*
         * Best assessment.
         */
         $bestAssessment =
             (clone $teamAssessmentQuery)
-                ->with('databaseConnection')
                 ->whereNotNull('score')
                 ->orderByDesc('score')
                 ->first();
@@ -199,7 +228,6 @@ class SecurityReportController extends Controller
         */
         $worstAssessment =
             (clone $teamAssessmentQuery)
-                ->with('databaseConnection')
                 ->whereNotNull('score')
                 ->orderBy('score')
                 ->first();

@@ -88,33 +88,50 @@ class SecurityPolicyController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $totalPolicies =
+        $policyStats =
             (clone $teamPolicyQuery)
-                ->count();
+                ->selectRaw(
+                    "
+                    COUNT(*) AS total_policies,
+
+                    SUM(
+                        CASE
+                            WHEN is_active
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS active_policies,
+
+                    SUM(
+                        CASE
+                            WHEN NOT is_active
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS inactive_policies,
+
+                    SUM(
+                        CASE
+                            WHEN severity = 'CRITICAL'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS critical_policies
+                    "
+                )
+                ->first();
+
+        $totalPolicies =
+            (int) ($policyStats?->total_policies ?? 0);
 
         $activePolicies =
-            (clone $teamPolicyQuery)
-                ->where(
-                    'is_active',
-                    true
-                )
-                ->count();
+            (int) ($policyStats?->active_policies ?? 0);
 
         $inactivePolicies =
-            (clone $teamPolicyQuery)
-                ->where(
-                    'is_active',
-                    false
-                )
-                ->count();
+            (int) ($policyStats?->inactive_policies ?? 0);
 
         $criticalPolicies =
-            (clone $teamPolicyQuery)
-                ->where(
-                    'severity',
-                    'CRITICAL'
-                )
-                ->count();
+            (int) ($policyStats?->critical_policies ?? 0);
 
         /*
         |--------------------------------------------------------------------------
