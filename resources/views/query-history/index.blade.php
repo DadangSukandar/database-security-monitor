@@ -325,7 +325,13 @@
 
                             <td>
 
-                                @if($activity->status === 'success')
+                                @if (
+                                        strtolower(
+                                            $activity->status instanceof \BackedEnum
+                                                ? $activity->status->value
+                                                : (string) $activity->status
+                                        ) === 'success'
+                                    )
 
                                     <span class="status-success">
                                         SUCCESS
@@ -359,7 +365,13 @@
                         </tr>
 
 
-                        @if($activity->status === 'failed')
+                        @if (
+                                strtolower(
+                                    $activity->status instanceof \BackedEnum
+                                        ? $activity->status->value
+                                        : (string) $activity->status
+                                ) === 'failed'
+                            )
 
                             <tr class="error-row">
 

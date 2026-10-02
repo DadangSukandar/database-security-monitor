@@ -120,11 +120,15 @@ class SqlQueryController extends Controller
                             )
                             : [];
 
+                    $tableName = $this->extractTableName(
+                        $sql
+                    );
+
                     $activityLogger->success(
                         $databaseConnection,
                         $sql,
                         'SELECT',
-                        null,
+                        $tableName,
                         $executionTimeMs,
                     );
 
@@ -177,11 +181,15 @@ class SqlQueryController extends Controller
                     )
                     : 0;
 
+            $tableName = $this->extractTableName(
+                $sql
+            );
+
             $activityLogger->failed(
                 $databaseConnection,
                 $sql,
                 'SELECT',
-                null,
+                $tableName,
                 $exception,
                 $executionTimeMs,
             );
@@ -211,6 +219,32 @@ class SqlQueryController extends Controller
                 ]
             );
         }
+    }
+
+    private function extractTableName(
+        string $sql
+    ): ?string {
+        $normalized = preg_replace(
+            '/\s+/',
+            ' ',
+            trim($sql)
+        );
+
+        if (! is_string($normalized)) {
+            return null;
+        }
+
+        $matched = preg_match(
+            '/\bfrom\s+["`\[]?([a-zA-Z0-9_]+)["`\]]?/i',
+            $normalized,
+            $matches
+        );
+
+        if ($matched !== 1) {
+            return null;
+        }
+
+        return $matches[1];
     }
 
     private function activeConnections(

@@ -106,6 +106,10 @@ class DatabaseDiscoveryController extends Controller
                     $databaseConnection
                 );
 
+            $databaseConnection->update([
+                'last_scanned_at' => now(),
+            ]);
+
             return redirect()
                 ->route(
                     'database-discovery.index'

@@ -33,9 +33,20 @@ class DatabaseActivityController extends Controller
             'action'
         );
 
-        $status = $request->input(
-            'status'
-        );
+        $status = match (
+            strtolower(
+                (string) $request->input(
+                    'status',
+                    ''
+                )
+            )
+        ) {
+            DatabaseActivityStatus::SUCCESS->value => DatabaseActivityStatus::SUCCESS->value,
+
+            DatabaseActivityStatus::FAILED->value => DatabaseActivityStatus::FAILED->value,
+
+            default => null,
+        };
 
         $connectionId = $request->input(
             'database_connection_id'

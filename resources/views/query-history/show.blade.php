@@ -167,7 +167,13 @@
     </div>
 
 
-    @if($databaseActivity->status === 'failed')
+    @if (
+            strtolower(
+                $databaseActivity->status instanceof \BackedEnum
+                    ? $databaseActivity->status->value
+                    : (string) $databaseActivity->status
+            ) === 'failed'
+        )
 
         <div class="error-box">
 

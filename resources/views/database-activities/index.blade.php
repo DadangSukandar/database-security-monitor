@@ -779,19 +779,15 @@
                                     </option>
 
                                     <option
-                                        value="SUCCESS"
-                                        @selected(
-                                            $status === 'SUCCESS'
-                                        )
+                                        value="success"
+                                        @selected(request('status') === 'success')
                                     >
                                         SUCCESS
                                     </option>
 
                                     <option
-                                        value="FAILED"
-                                        @selected(
-                                            $status === 'FAILED'
-                                        )
+                                        value="failed"
+                                        @selected(request('status') === 'failed')
                                     >
                                         FAILED
                                     </option>
