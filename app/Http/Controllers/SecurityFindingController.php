@@ -217,98 +217,119 @@ class SecurityFindingController extends Controller
          * =====================================================
          */
 
-        $totalFindings =
+        $findingStats =
             (clone $teamFindingQuery)
-                ->count();
+                ->selectRaw(
+                    "
+                    COUNT(*) AS total_findings,
 
-        /*
-         * =====================================================
-         * STATUS COUNTS
-         * =====================================================
-         */
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS open_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'RESOLVED'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS resolved_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'IGNORED'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS ignored_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'CRITICAL'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS critical_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'HIGH'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS high_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'MEDIUM'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS medium_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'LOW'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS low_findings
+                    "
+                )
+                ->first();
+
+        $totalFindings =
+            (int) ($findingStats?->total_findings ?? 0);
 
         $openFindings =
-            (clone $teamFindingQuery)
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
+            (int) ($findingStats?->open_findings ?? 0);
 
         $resolvedFindings =
-            (clone $teamFindingQuery)
-                ->where(
-                    'status',
-                    'RESOLVED'
-                )
-                ->count();
+            (int) ($findingStats?->resolved_findings ?? 0);
 
         $ignoredFindings =
-            (clone $teamFindingQuery)
-                ->where(
-                    'status',
-                    'IGNORED'
-                )
-                ->count();
-
-        /*
-         * =====================================================
-         * SEVERITY COUNTS
-         * =====================================================
-         *
-         * Hanya finding OPEN yang dihitung sebagai
-         * active security risk.
-         */
+            (int) ($findingStats?->ignored_findings ?? 0);
 
         $critical =
-            (clone $teamFindingQuery)
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->where(
-                    'severity',
-                    'CRITICAL'
-                )
-                ->count();
+            (int) ($findingStats?->critical_findings ?? 0);
 
         $high =
-            (clone $teamFindingQuery)
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->where(
-                    'severity',
-                    'HIGH'
-                )
-                ->count();
+            (int) ($findingStats?->high_findings ?? 0);
 
         $medium =
-            (clone $teamFindingQuery)
-                ->where(
-
-                    'status',
-                    'OPEN'
-                )
-                ->where(
-                    'severity',
-                    'MEDIUM'
-                )
-                ->count();
+            (int) ($findingStats?->medium_findings ?? 0);
 
         $low =
-            (clone $teamFindingQuery)
-                ->where(
-
-                    'status',
-                    'OPEN'
-                )
-                ->where(
-                    'severity',
-                    'LOW'
-                )
-                ->count();
+            (int) ($findingStats?->low_findings ?? 0);
 
         /*
          * =====================================================
@@ -439,6 +460,10 @@ class SecurityFindingController extends Controller
         $this->ensureFindingBelongsToCurrentTeam(
             $request,
             $finding
+        );
+
+        $finding->load(
+            'histories'
         );
 
         return view(
