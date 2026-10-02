@@ -3,6 +3,7 @@
 use App\Models\DatabaseConnection;
 use App\Models\SecurityAlert;
 use App\Models\SecurityAlertHistory;
+use App\Models\Team;
 use App\Models\User;
 use App\Models\VulnerabilityAssessment;
 use App\Models\VulnerabilityFinding;
@@ -441,13 +442,41 @@ it('rolls back every group when a later consolidation group fails', function () 
 });
 
 it('uses only canonical alerts for generation SLA and dashboard analytics', function () {
-    $connection = createBackfillConnection();
-    [$assessment, $finding] = createBackfillSource($connection);
+    $user =
+    User::factory()->create();
+
+    $team =
+        Team::factory()->create();
+
+    $team->members()->attach(
+        $user->id,
+        [
+            'role' => 'admin',
+        ]
+    );
+
+    expect(
+        $user->switchTeam($team)
+    )->toBeTrue();
+
+    $connection =
+        createBackfillConnection();
+
+    $connection->team_id =
+        $team->id;
+
+    $connection->save();
+
+    [$assessment, $finding] =
+        createBackfillSource(
+            $connection
+        );
     $fingerprint = app(SecurityAlertFingerprintService::class)->forVulnerabilityFinding(
         $connection->id,
         'guardium',
         $finding
     );
+
     $canonical = createLegacyAlert($assessment, $finding, [
         'fingerprint' => $fingerprint,
         'occurrence_count' => 1,
@@ -455,6 +484,12 @@ it('uses only canonical alerts for generation SLA and dashboard analytics', func
         'severity' => 'CRITICAL',
         'detected_at' => now()->subMinutes(30),
     ]);
+
+    $canonical->team_id =
+        $team->id;
+
+    $canonical->save();
+
     $duplicate = createLegacyAlert($assessment, $finding, [
         'canonical_alert_id' => $canonical->id,
         'consolidated_at' => now(),
@@ -462,11 +497,16 @@ it('uses only canonical alerts for generation SLA and dashboard analytics', func
         'detected_at' => now()->subMinutes(30),
     ]);
 
+    $duplicate->team_id =
+        $team->id;
+
+    $duplicate->save();
+
     $this->artisan('security:escalate-alerts')
         ->expectsOutput('Escalated 0 security alert(s).')
         ->assertSuccessful();
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs($user)
         ->get(route('security-dashboard'))
         ->assertOk()
         ->assertViewHas('totalAlerts', 1)
