@@ -48,48 +48,46 @@ class SecurityRiskController extends Controller
          * =====================================================
          */
 
-        $totalFindings =
+        $findingStats =
             (clone $teamFindingQuery)
-                ->count();
+                ->selectRaw(
+                    "
+                    COUNT(*) AS total_findings,
 
-        /*
-         * =====================================================
-         * RESOLVED FINDINGS
-         *
-         * Kita dukung dua model:
-         *
-         * 1. resolved = true
-         * 2. status = RESOLVED
-         * =====================================================
-         */
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN UPPER(COALESCE(status, '')) = 'RESOLVED'
+                                    OR resolved_at IS NOT NULL
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS resolved_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN UPPER(COALESCE(status, '')) = 'IGNORED'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS ignored_findings
+                    "
+                )
+                ->first();
+
+        $totalFindings =
+            (int) ($findingStats?->total_findings ?? 0);
 
         $resolvedFindings =
-            (clone $teamFindingQuery)
-                ->where(function ($query) {
-                    $query
-                        ->whereRaw(
-                            'UPPER(COALESCE(status, \'\')) = ?',
-                            ['RESOLVED']
-                        )
-                        ->orWhereNotNull(
-                            'resolved_at'
-                        );
-                })
-                ->count();
-
-        /*
-         * =====================================================
-         * IGNORED FINDINGS
-         * =====================================================
-         */
+            (int) ($findingStats?->resolved_findings ?? 0);
 
         $ignoredFindings =
-            (clone $teamFindingQuery)
-                ->whereRaw(
-                    'UPPER(COALESCE(status, \'\')) = ?',
-                    ['IGNORED']
-                )
-                ->count();
+            (int) ($findingStats?->ignored_findings ?? 0);
 
         /*
          * =====================================================
@@ -138,60 +136,73 @@ class SecurityRiskController extends Controller
          * =====================================================
          */
 
-        $openFindings = (clone $activeQuery)
-            ->count();
+        $activeStats =
+            (clone $activeQuery)
+                ->selectRaw(
+                    "
+                    COUNT(*) AS open_findings,
 
-        /*
-         * =====================================================
-         * ACTIVE CRITICAL
-         * =====================================================
-         */
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN UPPER(COALESCE(severity, '')) = 'CRITICAL'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS open_critical,
 
-        $openCritical = (clone $activeQuery)
-            ->whereRaw(
-                'UPPER(COALESCE(severity, \'\')) = ?',
-                ['CRITICAL']
-            )
-            ->count();
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN UPPER(COALESCE(severity, '')) = 'HIGH'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS open_high,
 
-        /*
-         * =====================================================
-         * ACTIVE HIGH
-         * =====================================================
-         */
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN UPPER(COALESCE(severity, '')) = 'MEDIUM'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS open_medium,
 
-        $openHigh = (clone $activeQuery)
-            ->whereRaw(
-                'UPPER(COALESCE(severity, \'\')) = ?',
-                ['HIGH']
-            )
-            ->count();
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN UPPER(COALESCE(severity, '')) = 'LOW'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS open_low
+                    "
+                )
+                ->first();
 
-        /*
-         * =====================================================
-         * ACTIVE MEDIUM
-         * =====================================================
-         */
+        $openFindings =
+            (int) ($activeStats?->open_findings ?? 0);
 
-        $openMedium = (clone $activeQuery)
-            ->whereRaw(
-                'UPPER(COALESCE(severity, \'\')) = ?',
-                ['MEDIUM']
-            )
-            ->count();
+        $openCritical =
+            (int) ($activeStats?->open_critical ?? 0);
 
-        /*
-         * =====================================================
-         * ACTIVE LOW
-         * =====================================================
-         */
+        $openHigh =
+            (int) ($activeStats?->open_high ?? 0);
 
-        $openLow = (clone $activeQuery)
-            ->whereRaw(
-                'UPPER(COALESCE(severity, \'\')) = ?',
-                ['LOW']
-            )
-            ->count();
+        $openMedium =
+            (int) ($activeStats?->open_medium ?? 0);
+
+        $openLow =
+            (int) ($activeStats?->open_low ?? 0);
 
         /*
          * =====================================================
@@ -472,51 +483,39 @@ class SecurityRiskController extends Controller
          * =====================================================
          */
 
+        $assessmentStats =
+            (clone $teamAssessmentQuery)
+                ->selectRaw(
+                    '
+                    COUNT(*) AS assessment_count,
+                    AVG(score) AS average_score,
+                    MAX(score) AS best_score,
+                    MIN(score) AS worst_score
+                    '
+                )
+                ->first();
+
         $assessmentCount =
-            (clone $teamAssessmentQuery)
-                ->count();
+            (int) (
+                $assessmentStats?->assessment_count ?? 0
+            );
 
         $averageScore =
-            (clone $teamAssessmentQuery)
-                ->whereNotNull('score')
-                ->avg('score');
-
-        $averageScore =
-            $averageScore !== null
+            $assessmentStats?->average_score !== null
                 ? round(
-                    $averageScore,
+                    (float) $assessmentStats->average_score,
                     1
                 )
                 : 0;
 
-        /*
-         * =====================================================
-         * BEST SCORE
-         * =====================================================
-         */
-
         $bestScore =
-            (clone $teamAssessmentQuery)
-                ->max('score');
-
-        $bestScore =
-            $bestScore !== null
-                ? (int) $bestScore
+            $assessmentStats?->best_score !== null
+                ? (int) $assessmentStats->best_score
                 : 0;
 
-        /*
-         * =====================================================
-         * WORST SCORE
-         * =====================================================
-         */
-
         $worstScore =
-            (clone $teamAssessmentQuery)
-                ->min('score');
-
-        $worstScore =
-            $worstScore !== null
-                ? (int) $worstScore
+            $assessmentStats?->worst_score !== null
+                ? (int) $assessmentStats->worst_score
                 : 0;
 
         /*
