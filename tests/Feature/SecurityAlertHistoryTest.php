@@ -1,19 +1,40 @@
 <?php
 
 use App\Models\SecurityAlert;
+use App\Models\Team;
 use App\Models\User;
 
 it('records an alert acknowledgement in history', function () {
 
-    $user = User::factory()->create();
+    $user =
+    User::factory()->create();
+
+    $team =
+        Team::factory()->create();
+
+    $team->members()->attach(
+        $user->id,
+        [
+            'role' => 'admin',
+        ]
+    );
+
+    expect(
+        $user->switchTeam($team)
+    )->toBeTrue();
 
     $this->actingAs($user);
 
-    $alert = SecurityAlert::query()->create([
+    $alert = new SecurityAlert([
         'severity' => 'HIGH',
         'title' => 'Repeated failed login',
         'status' => 'OPEN',
     ]);
+
+    $alert->team_id =
+        $team->id;
+
+    $alert->save();
 
     $this->post(route('security-alerts.acknowledge', $alert))->assertRedirect();
 
@@ -34,15 +55,35 @@ it('records an alert acknowledgement in history', function () {
 
 it('rejects a repeated acknowledgement without duplicating history', function () {
 
-    $user = User::factory()->create();
+    $user =
+    User::factory()->create();
+
+    $team =
+        Team::factory()->create();
+
+    $team->members()->attach(
+        $user->id,
+        [
+            'role' => 'admin',
+        ]
+    );
+
+    expect(
+        $user->switchTeam($team)
+    )->toBeTrue();
 
     $this->actingAs($user);
 
-    $alert = SecurityAlert::query()->create([
+    $alert = new SecurityAlert([
         'severity' => 'MEDIUM',
         'title' => 'Unusual query pattern',
         'status' => 'ACKNOWLEDGED',
     ]);
+
+    $alert->team_id =
+        $team->id;
+
+    $alert->save();
 
     $this->post(route('security-alerts.acknowledge', $alert))
         ->assertRedirect()
@@ -53,15 +94,35 @@ it('rejects a repeated acknowledgement without duplicating history', function ()
 
 it('records resolution and clears lifecycle timestamps when reopened', function () {
 
-    $user = User::factory()->create();
+    $user =
+    User::factory()->create();
+
+    $team =
+        Team::factory()->create();
+
+    $team->members()->attach(
+        $user->id,
+        [
+            'role' => 'admin',
+        ]
+    );
+
+    expect(
+        $user->switchTeam($team)
+    )->toBeTrue();
 
     $this->actingAs($user);
 
-    $alert = SecurityAlert::query()->create([
+    $alert = new SecurityAlert([
         'severity' => 'CRITICAL',
         'title' => 'Dangerous database operation',
         'status' => 'OPEN',
     ]);
+
+    $alert->team_id =
+        $team->id;
+
+    $alert->save();
 
     $this->post(route('security-alerts.resolve', $alert), [
         'resolution_note' => 'Operation reviewed and access revoked.',

@@ -2,23 +2,49 @@
 
 use App\Models\SecurityAlert;
 use App\Models\SecurityAlertHistory;
+use App\Models\Team;
 use App\Models\User;
 use App\Services\SecurityAlertLifecycleService;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
-function createLifecycleAlert(array $attributes = []): SecurityAlert
-{
-    return SecurityAlert::query()->create(array_merge([
-        'alert_type' => 'VULNERABILITY',
-        'severity' => 'HIGH',
-        'title' => 'Lifecycle foundation alert',
-        'status' => 'OPEN',
-        'detected_at' => now()->subHour()->startOfSecond(),
-        'first_seen_at' => now()->subHour()->startOfSecond(),
-        'last_seen_at' => now()->subHour()->startOfSecond(),
-    ], $attributes));
+function createLifecycleAlert(
+    array $attributes = [],
+    ?Team $team = null
+): SecurityAlert {
+    $alert = new SecurityAlert(
+        array_merge([
+            'alert_type' => 'VULNERABILITY',
+
+            'severity' => 'HIGH',
+
+            'title' => 'Lifecycle foundation alert',
+
+            'status' => 'OPEN',
+
+            'detected_at' => now()
+                ->subHour()
+                ->startOfSecond(),
+
+            'first_seen_at' => now()
+                ->subHour()
+                ->startOfSecond(),
+
+            'last_seen_at' => now()
+                ->subHour()
+                ->startOfSecond(),
+        ], $attributes)
+    );
+
+    if ($team !== null) {
+        $alert->team_id =
+            $team->id;
+    }
+
+    $alert->save();
+
+    return $alert;
 }
 
 beforeEach(function () {
@@ -61,9 +87,28 @@ it('supports investigating and resolution through explicit transitions', functio
 });
 
 it('starts investigation through the controller and records the authenticated user', function () {
-    $user = User::factory()->create();
+    $user =
+    User::factory()->create();
 
-    $alert = createLifecycleAlert();
+    $team =
+        Team::factory()->create();
+
+    $team->members()->attach(
+        $user->id,
+        [
+            'role' => 'admin',
+        ]
+    );
+
+    expect(
+        $user->switchTeam($team)
+    )->toBeTrue();
+
+    $alert =
+        createLifecycleAlert(
+            [],
+            $team
+        );
 
     $this->actingAs($user)
         ->post(route('security-alerts.investigate', $alert), [
@@ -87,9 +132,28 @@ it('starts investigation through the controller and records the authenticated us
 });
 
 it('starts investigation from acknowledged status and keeps the authenticated actor', function () {
-    $user = User::factory()->create();
+    $user =
+    User::factory()->create();
 
-    $alert = createLifecycleAlert();
+    $team =
+        Team::factory()->create();
+
+    $team->members()->attach(
+        $user->id,
+        [
+            'role' => 'admin',
+        ]
+    );
+
+    expect(
+        $user->switchTeam($team)
+    )->toBeTrue();
+
+    $alert =
+        createLifecycleAlert(
+            [],
+            $team
+        );
 
     app(SecurityAlertLifecycleService::class)
         ->acknowledge($alert);
@@ -119,21 +183,45 @@ it('starts investigation from acknowledged status and keeps the authenticated ac
 
 it('rejects investigation for resolved and historical duplicate alerts', function () {
 
-    $user = User::factory()->create();
+    $user =
+    User::factory()->create();
+
+    $team =
+        Team::factory()->create();
+
+    $team->members()->attach(
+        $user->id,
+        [
+            'role' => 'admin',
+        ]
+    );
+
+    expect(
+        $user->switchTeam($team)
+    )->toBeTrue();
 
     $this->actingAs($user);
 
-    $canonical = createLifecycleAlert();
+    $canonical =
+        createLifecycleAlert(
+            [],
+            $team
+        );
 
     app(SecurityAlertLifecycleService::class)->resolve(
         $canonical,
         'Issue remediated.'
     );
 
-    $duplicate = createLifecycleAlert([
-        'canonical_alert_id' => $canonical->id,
-        'consolidated_at' => now(),
-    ]);
+    $duplicate =
+    createLifecycleAlert(
+        [
+            'canonical_alert_id' => $canonical->id,
+
+            'consolidated_at' => now(),
+        ],
+        $team
+    );
 
     $this->post(
         route('security-alerts.investigate', $canonical),
@@ -233,14 +321,45 @@ it('rolls back the alert update when history creation fails', function () {
 });
 
 it('rejects lifecycle changes to historical duplicate alerts', function () {
-    $canonical = createLifecycleAlert();
-    $duplicate = createLifecycleAlert([
-        'canonical_alert_id' => $canonical->id,
-        'consolidated_at' => now(),
-    ]);
-    $before = $duplicate->fresh()->getAttributes();
+    $user =
+    User::factory()->create();
 
-    $user = User::factory()->create();
+    $team =
+        Team::factory()->create();
+
+    $team->members()->attach(
+        $user->id,
+        [
+            'role' => 'admin',
+        ]
+    );
+
+    expect(
+        $user->switchTeam($team)
+    )->toBeTrue();
+
+    $canonical =
+        createLifecycleAlert(
+            [],
+            $team
+        );
+
+    $duplicate =
+        createLifecycleAlert(
+            [
+                'canonical_alert_id' => $canonical->id,
+
+                'consolidated_at' => now(),
+            ],
+            $team
+        );
+
+    $before =
+        $duplicate
+            ->fresh()
+            ->getAttributes();
+
+    $this->actingAs($user);
 
     $this->actingAs($user);
 
