@@ -15,36 +15,74 @@ class SecurityIncidentPrioritySortingTest extends TestCase
     use RefreshDatabase;
 
     private function createAlert(
+        Team $team,
         array $attributes = []
     ): SecurityAlert {
-        return SecurityAlert::query()->create(array_merge([
-            'alert_type' => 'VULNERABILITY',
-            'severity' => 'HIGH',
-            'title' => 'Unauthorized privilege activity',
-            'description' => 'Suspicious privilege activity detected.',
-            'status' => 'OPEN',
-            'detected_at' => now(),
-            'sla_started_at' => now(),
-            'occurrence_count' => 1,
-            'first_seen_at' => now(),
-            'last_seen_at' => now(),
-        ], $attributes));
+        $alert = new SecurityAlert(
+            array_merge([
+                'alert_type' => 'VULNERABILITY',
+
+                'severity' => 'HIGH',
+
+                'title' => 'Unauthorized privilege activity',
+
+                'description' => 'Suspicious privilege activity detected.',
+
+                'status' => 'OPEN',
+
+                'detected_at' => now(),
+
+                'sla_started_at' => now(),
+
+                'occurrence_count' => 1,
+
+                'first_seen_at' => now(),
+
+                'last_seen_at' => now(),
+            ], $attributes)
+        );
+
+        $alert->team_id =
+            $team->id;
+
+        $alert->save();
+
+        return $alert;
     }
 
     private function createIncident(
+        Team $team,
         array $attributes = []
     ): SecurityIncident {
-        $alert = $this->createAlert();
+        $alert =
+            $this->createAlert(
+                $team
+            );
 
-        return SecurityIncident::query()->create(array_merge([
-            'incident_number' => 'INC-20260902-0001',
-            'security_alert_id' => $alert->id,
-            'title' => 'Database privilege incident',
-            'description' => 'Security incident for priority sorting.',
-            'severity' => 'HIGH',
-            'status' => 'OPEN',
-            'opened_at' => now(),
-        ], $attributes));
+        $incident = new SecurityIncident(
+            array_merge([
+                'incident_number' => 'INC-20260902-0001',
+
+                'security_alert_id' => $alert->id,
+
+                'title' => 'Database privilege incident',
+
+                'description' => 'Security incident for priority sorting.',
+
+                'severity' => 'HIGH',
+
+                'status' => 'OPEN',
+
+                'opened_at' => now(),
+            ], $attributes)
+        );
+
+        $incident->team_id =
+            $team->id;
+
+        $incident->save();
+
+        return $incident;
     }
 
     private function attachUserToTeam(
@@ -57,10 +95,16 @@ class SecurityIncidentPrioritySortingTest extends TestCase
         ]);
     }
 
-    private function createUserWithCurrentTeam(): User
+    /**
+     * @return array{0: User, 1: Team}
+     */
+    private function createUserWithCurrentTeam(): array
     {
-        $user = User::factory()->create();
-        $team = Team::factory()->create();
+        $user =
+            User::factory()->create();
+
+        $team =
+            Team::factory()->create();
 
         $this->attachUserToTeam(
             $team,
@@ -71,46 +115,62 @@ class SecurityIncidentPrioritySortingTest extends TestCase
             $user->switchTeam($team)
         );
 
-        return $user;
+        return [
+            $user,
+            $team,
+        ];
     }
 
     public function test_incident_queue_orders_by_triage_priority(): void
     {
-        $user = $this->createUserWithCurrentTeam();
+        [
+            $user,
+            $team,
+        ] = $this->createUserWithCurrentTeam();
 
         $now = now();
 
-        $p4 = $this->createIncident([
-            'incident_number' => 'INC-P4',
-            'severity' => 'LOW',
-            'opened_at' => $now->copy()->subMinutes(30),
-        ]);
+        $p4 = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-P4',
+                'severity' => 'LOW',
+                'opened_at' => $now->copy()->subMinutes(30),
+            ]);
 
-        $p3 = $this->createIncident([
-            'incident_number' => 'INC-P3',
-            'severity' => 'MEDIUM',
-            'opened_at' => $now->copy()->subMinutes(30),
-        ]);
+        $p3 = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-P3',
+                'severity' => 'MEDIUM',
+                'opened_at' => $now->copy()->subMinutes(30),
+            ]);
 
-        $p2 = $this->createIncident([
-            'incident_number' => 'INC-P2',
-            'severity' => 'HIGH',
-            'opened_at' => $now->copy()->subMinutes(10),
-        ]);
+        $p2 = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-P2',
+                'severity' => 'HIGH',
+                'opened_at' => $now->copy()->subMinutes(10),
+            ]);
 
-        $p1 = $this->createIncident([
-            'incident_number' => 'INC-P1',
-            'severity' => 'CRITICAL',
-            'opened_at' => $now->copy()->subMinutes(5),
-        ]);
+        $p1 = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-P1',
+                'severity' => 'CRITICAL',
+                'opened_at' => $now->copy()->subMinutes(5),
+            ]);
 
-        $closed = $this->createIncident([
-            'incident_number' => 'INC-CLOSED',
-            'severity' => 'CRITICAL',
-            'status' => 'CLOSED',
-            'opened_at' => $now->copy()->subHours(2),
-            'closed_at' => $now->copy()->subHour(),
-        ]);
+        $closed = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-CLOSED',
+                'severity' => 'CRITICAL',
+                'status' => 'CLOSED',
+                'opened_at' => $now->copy()->subHours(2),
+                'closed_at' => $now->copy()->subHour(),
+            ]);
 
         $response = $this
             ->actingAs($user)
@@ -129,21 +189,28 @@ class SecurityIncidentPrioritySortingTest extends TestCase
 
     public function test_breached_sla_is_sorted_as_p1(): void
     {
-        $user = $this->createUserWithCurrentTeam();
+        [
+            $user,
+            $team,
+        ] = $this->createUserWithCurrentTeam();
 
         $now = now();
 
-        $breachedLow = $this->createIncident([
-            'incident_number' => 'INC-BREACHED-LOW',
-            'severity' => 'LOW',
-            'opened_at' => $now->copy()->subMinutes(1441),
-        ]);
+        $breachedLow = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-BREACHED-LOW',
+                'severity' => 'LOW',
+                'opened_at' => $now->copy()->subMinutes(1441),
+            ]);
 
-        $high = $this->createIncident([
-            'incident_number' => 'INC-HIGH',
-            'severity' => 'HIGH',
-            'opened_at' => $now->copy()->subMinutes(10),
-        ]);
+        $high = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-HIGH',
+                'severity' => 'HIGH',
+                'opened_at' => $now->copy()->subMinutes(10),
+            ]);
 
         $response = $this
             ->actingAs($user)
@@ -159,21 +226,28 @@ class SecurityIncidentPrioritySortingTest extends TestCase
 
     public function test_due_soon_incident_is_sorted_as_p2(): void
     {
-        $user = $this->createUserWithCurrentTeam();
+        [
+            $user,
+            $team,
+        ] = $this->createUserWithCurrentTeam();
 
         $now = now();
 
-        $dueSoonMedium = $this->createIncident([
-            'incident_number' => 'INC-DUE-SOON',
-            'severity' => 'MEDIUM',
-            'opened_at' => $now->copy()->subMinutes(190),
-        ]);
+        $dueSoonMedium = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-DUE-SOON',
+                'severity' => 'MEDIUM',
+                'opened_at' => $now->copy()->subMinutes(190),
+            ]);
 
-        $onTrackMedium = $this->createIncident([
-            'incident_number' => 'INC-MEDIUM',
-            'severity' => 'MEDIUM',
-            'opened_at' => $now->copy()->subMinutes(30),
-        ]);
+        $onTrackMedium = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-MEDIUM',
+                'severity' => 'MEDIUM',
+                'opened_at' => $now->copy()->subMinutes(30),
+            ]);
 
         $response = $this
             ->actingAs($user)
@@ -189,21 +263,28 @@ class SecurityIncidentPrioritySortingTest extends TestCase
 
     public function test_older_incident_wins_when_priority_is_equal(): void
     {
-        $user = $this->createUserWithCurrentTeam();
+        [
+            $user,
+            $team,
+        ] = $this->createUserWithCurrentTeam();
 
         $now = now();
 
-        $older = $this->createIncident([
-            'incident_number' => 'INC-OLDER-P2',
-            'severity' => 'HIGH',
-            'opened_at' => $now->copy()->subMinutes(20),
-        ]);
+        $older = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-OLDER-P2',
+                'severity' => 'HIGH',
+                'opened_at' => $now->copy()->subMinutes(20),
+            ]);
 
-        $newer = $this->createIncident([
-            'incident_number' => 'INC-NEWER-P2',
-            'severity' => 'HIGH',
-            'opened_at' => $now->copy()->subMinutes(10),
-        ]);
+        $newer = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-NEWER-P2',
+                'severity' => 'HIGH',
+                'opened_at' => $now->copy()->subMinutes(10),
+            ]);
 
         $response = $this
             ->actingAs($user)
@@ -219,26 +300,33 @@ class SecurityIncidentPrioritySortingTest extends TestCase
 
     public function test_priority_sorting_happens_before_pagination(): void
     {
-        $user = $this->createUserWithCurrentTeam();
+        [
+            $user,
+            $team,
+        ] = $this->createUserWithCurrentTeam();
 
         $now = now();
 
         foreach (range(1, 20) as $index) {
-            $this->createIncident([
-                'incident_number' => sprintf(
-                    'INC-P4-%02d',
-                    $index
-                ),
-                'severity' => 'LOW',
-                'opened_at' => $now->copy()->subMinutes($index),
-            ]);
+            $this->createIncident(
+                $team,
+                [
+                    'incident_number' => sprintf(
+                        'INC-P4-%02d',
+                        $index
+                    ),
+                    'severity' => 'LOW',
+                    'opened_at' => $now->copy()->subMinutes($index),
+                ]);
         }
 
-        $p1 = $this->createIncident([
-            'incident_number' => 'INC-P1-PAGINATION',
-            'severity' => 'CRITICAL',
-            'opened_at' => $now,
-        ]);
+        $p1 = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-P1-PAGINATION',
+                'severity' => 'CRITICAL',
+                'opened_at' => $now,
+            ]);
 
         $response = $this
             ->actingAs($user)
@@ -251,31 +339,40 @@ class SecurityIncidentPrioritySortingTest extends TestCase
 
     public function test_priority_order_is_preserved_with_filters(): void
     {
-        $user = $this->createUserWithCurrentTeam();
+        [
+            $user,
+            $team,
+        ] = $this->createUserWithCurrentTeam();
 
         $now = now();
 
-        $critical = $this->createIncident([
-            'incident_number' => 'INC-FILTER-P1',
-            'severity' => 'CRITICAL',
-            'status' => 'OPEN',
-            'opened_at' => $now->copy()->subMinutes(5),
-        ]);
+        $critical = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-FILTER-P1',
+                'severity' => 'CRITICAL',
+                'status' => 'OPEN',
+                'opened_at' => $now->copy()->subMinutes(5),
+            ]);
 
-        $high = $this->createIncident([
-            'incident_number' => 'INC-FILTER-P2',
-            'severity' => 'HIGH',
-            'status' => 'OPEN',
-            'opened_at' => $now->copy()->subMinutes(10),
-        ]);
+        $high = $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-FILTER-P2',
+                'severity' => 'HIGH',
+                'status' => 'OPEN',
+                'opened_at' => $now->copy()->subMinutes(10),
+            ]);
 
-        $this->createIncident([
-            'incident_number' => 'INC-FILTER-CLOSED',
-            'severity' => 'CRITICAL',
-            'status' => 'CLOSED',
-            'opened_at' => $now->copy()->subHours(2),
-            'closed_at' => $now->copy()->subHour(),
-        ]);
+        $this->createIncident(
+            $team,
+            [
+                'incident_number' => 'INC-FILTER-CLOSED',
+                'severity' => 'CRITICAL',
+                'status' => 'CLOSED',
+                'opened_at' => $now->copy()->subHours(2),
+                'closed_at' => $now->copy()->subHour(),
+            ]);
 
         $response = $this
             ->actingAs($user)
