@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\SecurityAlert;
 use App\Models\SecurityIncident;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -12,12 +13,46 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Team $team;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->team = Team::factory()->create();
+    }
+
+    private function createTeamUser(): User
+    {
+        $user = User::factory()->create();
+
+        $this->team->members()->attach(
+            $user->id,
+            [
+                'role' => 'admin',
+            ]
+        );
+
+        $switched =
+            $user->switchTeam(
+                $this->team
+            );
+
+        $this->assertTrue(
+            $switched
+        );
+
+        $user->refresh();
+
+        return $user;
+    }
+
     private function createIncident(
         array $attributes = []
     ): SecurityIncident {
-        $creator = User::factory()->create();
+        $creator = $this->createTeamUser();
 
-        $alert = SecurityAlert::query()->create([
+        $alert = new SecurityAlert([
             'alert_type' => 'VULNERABILITY',
             'severity' => 'HIGH',
             'title' => 'Test alert',
@@ -30,7 +65,11 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
             'last_seen_at' => now(),
         ]);
 
-        return SecurityIncident::query()->create(
+        $alert->team_id = $this->team->id;
+
+        $alert->save();
+
+        $incident = new SecurityIncident(
             array_merge([
                 'incident_number' => 'INC-'.now()->format('Ymd').'-9999',
 
@@ -49,11 +88,18 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
                 'opened_at' => now(),
             ], $attributes)
         );
+
+        $incident->team_id =
+            $this->team->id;
+
+        $incident->save();
+
+        return $incident;
     }
 
     public function test_authenticated_user_can_acknowledge_incident(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $incident = $this->createIncident();
 
@@ -93,7 +139,7 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
 
     public function test_authenticated_actor_is_recorded_for_investigation(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $incident = $this->createIncident([
             'status' => 'ACKNOWLEDGED',
@@ -125,7 +171,7 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
 
     public function test_authenticated_user_can_contain_incident(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $incident = $this->createIncident([
             'status' => 'INVESTIGATING',
@@ -158,7 +204,7 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
 
     public function test_authenticated_user_can_resolve_incident_with_note(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $incident = $this->createIncident([
             'status' => 'CONTAINED',
@@ -210,7 +256,7 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
 
     public function test_resolution_note_is_required(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $incident = $this->createIncident([
             'status' => 'CONTAINED',
@@ -250,7 +296,7 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
 
     public function test_resolution_note_has_maximum_length(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $incident = $this->createIncident([
             'status' => 'CONTAINED',
@@ -288,7 +334,7 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
 
     public function test_authenticated_user_can_close_resolved_incident(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $incident = $this->createIncident([
             'status' => 'RESOLVED',
@@ -332,7 +378,7 @@ class SecurityIncidentLifecycleControllerTest extends TestCase
 
     public function test_invalid_transition_does_not_modify_incident(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $incident = $this->createIncident([
             'status' => 'OPEN',

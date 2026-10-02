@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\SecurityAlert;
 use App\Models\SecurityIncident;
 use App\Models\SecurityIncidentHistory;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -13,12 +14,41 @@ class SecurityIncidentInvestigationControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Team $team;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->team = Team::factory()->create();
+    }
+
+    private function createTeamUser(): User
+    {
+        $user = User::factory()->create();
+
+        $this->team->members()->attach(
+            $user->id,
+            [
+                'role' => 'admin',
+            ]
+        );
+
+        $user->forceFill([
+            'current_team_id' => $this->team->id,
+        ])->save();
+
+        $user->unsetRelation('currentTeam');
+
+        return $user->refresh();
+    }
+
     private function createIncident(
         array $attributes = []
     ): SecurityIncident {
-        $creator = User::factory()->create();
+        $creator = $this->createTeamUser();
 
-        $alert = SecurityAlert::query()->create([
+        $alert = new SecurityAlert([
             'alert_type' => 'VULNERABILITY',
             'severity' => 'HIGH',
             'title' => 'Investigation controller source alert',
@@ -31,26 +61,46 @@ class SecurityIncidentInvestigationControllerTest extends TestCase
             'last_seen_at' => now(),
         ]);
 
-        return SecurityIncident::query()->create(
+        $alert->team_id =
+            $this->team->id;
+
+        $alert->save();
+
+        $incident = new SecurityIncident(
             array_merge([
                 'incident_number' => 'INC-'.now()->format('Ymd').'-9999',
 
                 'security_alert_id' => $alert->id,
+
                 'title' => 'Investigation controller incident',
+
                 'description' => 'Incident investigation test.',
+
                 'severity' => 'HIGH',
+
                 'status' => 'INVESTIGATING',
+
                 'created_by_user_id' => $creator->id,
+
                 'opened_at' => now()->subHours(3),
+
                 'acknowledged_at' => now()->subHours(2),
+
                 'investigation_started_at' => now()->subHour(),
             ], $attributes)
         );
+
+        $incident->team_id =
+            $this->team->id;
+
+        $incident->save();
+
+        return $incident;
     }
 
     public function test_authenticated_user_can_add_investigation_note(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
         $incident = $this->createIncident();
 
         $this->actingAs($actor)
@@ -78,7 +128,7 @@ class SecurityIncidentInvestigationControllerTest extends TestCase
 
     public function test_authenticated_actor_is_recorded(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
         $incident = $this->createIncident();
 
         $this->actingAs($actor)
@@ -109,7 +159,7 @@ class SecurityIncidentInvestigationControllerTest extends TestCase
 
     public function test_investigation_note_does_not_change_incident_status(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $incident = $this->createIncident([
             'status' => 'CONTAINED',
@@ -148,7 +198,7 @@ class SecurityIncidentInvestigationControllerTest extends TestCase
 
     public function test_investigation_note_is_required(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
         $incident = $this->createIncident();
 
         $this->actingAs($actor)
@@ -180,7 +230,7 @@ class SecurityIncidentInvestigationControllerTest extends TestCase
 
     public function test_investigation_note_has_maximum_length(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
         $incident = $this->createIncident();
 
         $this->actingAs($actor)
@@ -212,7 +262,7 @@ class SecurityIncidentInvestigationControllerTest extends TestCase
 
     public function test_note_can_be_added_to_closed_incident(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $closedAt = now()->subHour()->startOfSecond();
 

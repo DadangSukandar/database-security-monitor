@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\SecurityAlert;
 use App\Models\SecurityAlertHistory;
 use App\Models\SecurityIncident;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -13,25 +14,73 @@ class SecurityIncidentControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function createAlert(array $attributes = []): SecurityAlert
+    private Team $team;
+
+    protected function setUp(): void
     {
-        return SecurityAlert::query()->create(array_merge([
-            'alert_type' => 'VULNERABILITY',
-            'severity' => 'HIGH',
-            'title' => 'Unauthorized privilege activity',
-            'description' => 'Suspicious privilege activity detected.',
-            'status' => 'OPEN',
-            'detected_at' => now(),
-            'sla_started_at' => now(),
-            'occurrence_count' => 1,
-            'first_seen_at' => now(),
-            'last_seen_at' => now(),
-        ], $attributes));
+        parent::setUp();
+
+        $this->team = Team::factory()->create();
+    }
+
+    private function createTeamUser(): User
+    {
+        $user = User::factory()->create();
+
+        $this->team->members()->attach(
+            $user->id,
+            [
+                'role' => 'admin',
+            ]
+        );
+
+        $user->forceFill([
+            'current_team_id' => $this->team->id,
+        ])->save();
+
+        $user->unsetRelation('currentTeam');
+
+        return $user->refresh();
+    }
+
+    private function createAlert(
+        array $attributes = []
+    ): SecurityAlert {
+        $alert = new SecurityAlert(
+            array_merge([
+                'alert_type' => 'VULNERABILITY',
+
+                'severity' => 'HIGH',
+
+                'title' => 'Unauthorized privilege activity',
+
+                'description' => 'Suspicious privilege activity detected.',
+
+                'status' => 'OPEN',
+
+                'detected_at' => now(),
+
+                'sla_started_at' => now(),
+
+                'occurrence_count' => 1,
+
+                'first_seen_at' => now(),
+
+                'last_seen_at' => now(),
+            ], $attributes)
+        );
+
+        $alert->team_id =
+            $this->team->id;
+
+        $alert->save();
+
+        return $alert;
     }
 
     public function test_authenticated_user_can_escalate_canonical_alert_to_incident(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $alert = $this->createAlert([
             'canonical_alert_id' => null,
@@ -76,7 +125,7 @@ class SecurityIncidentControllerTest extends TestCase
 
     public function test_escalation_records_authenticated_actor_in_alert_history(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $alert = $this->createAlert([
             'status' => 'INVESTIGATING',
@@ -112,8 +161,8 @@ class SecurityIncidentControllerTest extends TestCase
 
     public function test_escalation_does_not_change_alert_state(): void
     {
-        $actor = User::factory()->create();
-        $assignee = User::factory()->create();
+        $actor = $this->createTeamUser();
+        $assignee = $this->createTeamUser();
 
         $slaStartedAt = now()
             ->subHours(3)
@@ -179,7 +228,7 @@ class SecurityIncidentControllerTest extends TestCase
 
     public function test_it_rejects_escalating_historical_duplicate_alert(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $canonical = $this->createAlert();
 
@@ -221,7 +270,7 @@ class SecurityIncidentControllerTest extends TestCase
 
     public function test_it_rejects_duplicate_escalation(): void
     {
-        $actor = User::factory()->create();
+        $actor = $this->createTeamUser();
 
         $alert = $this->createAlert();
 

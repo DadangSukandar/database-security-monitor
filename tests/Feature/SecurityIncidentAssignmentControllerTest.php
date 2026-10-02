@@ -8,26 +8,44 @@ use App\Models\Team;
 use App\Models\User;
 
 function createIncidentAssignmentControllerIncident(
+    Team $team,
     array $attributes = []
 ): SecurityIncident {
     $creator = User::factory()->create();
 
-    $alert = SecurityAlert::query()->create([
+    $alert = new SecurityAlert([
         'alert_type' => 'VULNERABILITY',
         'severity' => 'HIGH',
         'title' => 'Incident assignment source alert',
         'description' => 'Source alert for incident assignment.',
         'status' => 'OPEN',
-        'detected_at' => now()->subHour()->startOfSecond(),
-        'sla_started_at' => now()->subHour()->startOfSecond(),
+        'detected_at' => now()
+            ->subHour()
+            ->startOfSecond(),
+        'sla_started_at' => now()
+            ->subHour()
+            ->startOfSecond(),
         'occurrence_count' => 1,
-        'first_seen_at' => now()->subHour()->startOfSecond(),
-        'last_seen_at' => now()->subHour()->startOfSecond(),
+        'first_seen_at' => now()
+            ->subHour()
+            ->startOfSecond(),
+        'last_seen_at' => now()
+            ->subHour()
+            ->startOfSecond(),
     ]);
 
-    return SecurityIncident::query()->create(
+    $alert->team_id =
+        $team->id;
+
+    $alert->save();
+
+    $incident = new SecurityIncident(
         array_merge([
-            'incident_number' => 'INC-'.now()->format('Ymd').'-9999',
+            'incident_number' => sprintf(
+                'INC-%s-%04d',
+                now()->format('Ymd'),
+                SecurityIncident::query()->count() + 1
+            ),
 
             'security_alert_id' => $alert->id,
 
@@ -44,6 +62,13 @@ function createIncidentAssignmentControllerIncident(
             'opened_at' => now(),
         ], $attributes)
     );
+
+    $incident->team_id =
+        $team->id;
+
+    $incident->save();
+
+    return $incident;
 }
 
 function attachIncidentUserToTeam(
@@ -66,7 +91,10 @@ it('assigns an incident to a member of the current team', function () {
 
     expect($actor->switchTeam($team))->toBeTrue();
 
-    $incident = createIncidentAssignmentControllerIncident();
+    $incident =
+    createIncidentAssignmentControllerIncident(
+        $team
+    );
 
     $this->actingAs($actor)
         ->post(
@@ -117,10 +145,15 @@ it('reassigns an incident to another member of the current team', function () {
 
     expect($actor->switchTeam($team))->toBeTrue();
 
-    $incident = createIncidentAssignmentControllerIncident([
-        'assigned_to_user_id' => $firstAssignee->id,
-        'assigned_at' => now()->subHour(),
-    ]);
+    $incident =
+    createIncidentAssignmentControllerIncident(
+        $team,
+        [
+            'assigned_to_user_id' => $firstAssignee->id,
+
+            'assigned_at' => now(),
+        ]
+    );
 
     $this->actingAs($actor)
         ->post(
@@ -156,7 +189,10 @@ it('rejects assigning an incident to a user outside the current team', function 
 
     expect($actor->switchTeam($team))->toBeTrue();
 
-    $incident = createIncidentAssignmentControllerIncident();
+    $incident =
+    createIncidentAssignmentControllerIncident(
+        $team
+    );
 
     $this->actingAs($actor)
         ->post(
@@ -202,10 +238,15 @@ it('unassigns an incident and records the authenticated actor', function () {
 
     expect($actor->switchTeam($team))->toBeTrue();
 
-    $incident = createIncidentAssignmentControllerIncident([
-        'assigned_to_user_id' => $assignee->id,
-        'assigned_at' => now(),
-    ]);
+    $incident =
+    createIncidentAssignmentControllerIncident(
+        $team,
+        [
+            'assigned_to_user_id' => $assignee->id,
+
+            'assigned_at' => now(),
+        ]
+    );
 
     $this->actingAs($actor)
         ->post(
@@ -246,12 +287,27 @@ it('assignment does not change incident lifecycle', function () {
     $investigationStartedAt =
         now()->subHour()->startOfSecond();
 
-    $incident = createIncidentAssignmentControllerIncident([
-        'status' => 'INVESTIGATING',
-        'acknowledged_at' => now()->subHours(2)->startOfSecond(),
+    $acknowledgedAt =
+        now()
+            ->subHours(2)
+            ->startOfSecond();
 
-        'investigation_started_at' => $investigationStartedAt,
-    ]);
+    $investigationStartedAt =
+        now()
+            ->subHour()
+            ->startOfSecond();
+
+    $incident =
+    createIncidentAssignmentControllerIncident(
+        $team,
+        [
+            'status' => 'INVESTIGATING',
+
+            'acknowledged_at' => $acknowledgedAt,
+
+            'investigation_started_at' => $investigationStartedAt,
+        ]
+    );
 
     $this->actingAs($actor)
         ->post(
@@ -289,17 +345,26 @@ it('assignment does not change incident lifecycle', function () {
 });
 
 it('prevents guests from assigning and unassigning incidents', function () {
-    $assignee = User::factory()->create();
+    $assignee =
+        User::factory()->create();
 
-    $incident = createIncidentAssignmentControllerIncident();
+    $team =
+        Team::factory()->create();
+
+    $incident =
+        createIncidentAssignmentControllerIncident(
+            $team
+        );
 
     $assignedIncident =
-        createIncidentAssignmentControllerIncident([
-            'incident_number' => 'INC-'.now()->format('Ymd').'-9998',
+        createIncidentAssignmentControllerIncident(
+            $team,
+            [
+                'assigned_to_user_id' => $assignee->id,
 
-            'assigned_to_user_id' => $assignee->id,
-            'assigned_at' => now(),
-        ]);
+                'assigned_at' => now(),
+            ]
+        );
 
     $this->post(
         route(
