@@ -110,6 +110,21 @@ class DatabaseActivityLogger
             );
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Resolve Database Name
+        |--------------------------------------------------------------------------
+        |
+        | DatabaseConnection adalah source of truth.
+        | Tidak perlu membuka koneksi baru hanya untuk mendapatkan nama database.
+        |
+        */
+
+        $databaseName =
+            $connection->database_name
+            ?? $connection->database
+            ?? null;
+
         $activity = new DatabaseActivity([
             'database_connection_id' => $connection->id,
 
@@ -127,7 +142,7 @@ class DatabaseActivityLogger
 
             'action' => strtoupper($action),
 
-            'query' => $query,
+            'query' => $safeQuery,
 
             'status' => $status,
 

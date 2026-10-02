@@ -24,8 +24,8 @@ class SecurityAuditController extends Controller
 
         $teamFindingQuery = SecurityFinding::query()
             ->forTeam($teamId);
+
         $query = (clone $teamFindingQuery)
-            ->with('databaseConnection')
             ->latest('detected_at');
 
         /*
@@ -95,73 +95,105 @@ class SecurityAuditController extends Controller
         |--------------------------------------------------------------------------
         */
 
+        $auditStats =
+            (clone $teamFindingQuery)
+                ->selectRaw(
+                    "
+                    COUNT(*) AS total_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS open_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'RESOLVED'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS resolved_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'CRITICAL'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS critical_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'HIGH'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS high_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'MEDIUM'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS medium_findings,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN status = 'OPEN'
+                                    AND severity = 'LOW'
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS low_findings
+                    "
+                )
+                ->first();
+
         $total =
-            (clone $teamFindingQuery)
-                ->count();
-
-        $critical =
-            (clone $teamFindingQuery)
-                ->where(
-                    'severity',
-                    'CRITICAL'
-                )
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
-
-        $high =
-            (clone $teamFindingQuery)
-                ->where(
-                    'severity',
-                    'HIGH'
-                )
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
-
-        $medium =
-            (clone $teamFindingQuery)
-                ->where(
-                    'severity',
-                    'MEDIUM'
-                )
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
-
-        $low =
-            (clone $teamFindingQuery)
-                ->where(
-                    'severity',
-                    'LOW'
-                )
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
+            (int) ($auditStats?->total_findings ?? 0);
 
         $open =
-            (clone $teamFindingQuery)
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
+            (int) ($auditStats?->open_findings ?? 0);
 
         $resolved =
-            (clone $teamFindingQuery)
-                ->where(
-                    'status',
-                    'RESOLVED'
-                )
-                ->count();
+            (int) ($auditStats?->resolved_findings ?? 0);
+
+        $critical =
+            (int) ($auditStats?->critical_findings ?? 0);
+
+        $high =
+            (int) ($auditStats?->high_findings ?? 0);
+
+        $medium =
+            (int) ($auditStats?->medium_findings ?? 0);
+
+        $low =
+            (int) ($auditStats?->low_findings ?? 0);
 
         /*
         |--------------------------------------------------------------------------
@@ -170,7 +202,10 @@ class SecurityAuditController extends Controller
         */
 
         $score = $this->calculateSecurityScore(
-            $teamId
+            $critical,
+            $high,
+            $medium,
+            $low
         );
 
         $connections =
@@ -254,10 +289,6 @@ class SecurityAuditController extends Controller
         $this->ensureFindingBelongsToCurrentTeam(
             $request,
             $securityFinding
-        );
-
-        $securityFinding->load(
-            'databaseConnection'
         );
 
         return view(
@@ -350,59 +381,11 @@ class SecurityAuditController extends Controller
     */
 
     private function calculateSecurityScore(
-        int $teamId
+        int $critical,
+        int $high,
+        int $medium,
+        int $low
     ): int {
-        $findingQuery = SecurityFinding::query()
-            ->forTeam($teamId);
-
-        $critical =
-            (clone $findingQuery)
-                ->where(
-                    'severity',
-                    'CRITICAL'
-                )
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
-
-        $high =
-            (clone $findingQuery)
-                ->where(
-                    'severity',
-                    'HIGH'
-                )
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
-
-        $medium =
-            (clone $findingQuery)
-                ->where(
-                    'severity',
-                    'MEDIUM'
-                )
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
-
-        $low =
-            (clone $findingQuery)
-                ->where(
-                    'severity',
-                    'LOW'
-                )
-                ->where(
-                    'status',
-                    'OPEN'
-                )
-                ->count();
-
         $deduction =
             ($critical * 30) +
             ($high * 15) +
