@@ -211,6 +211,30 @@
 
         </div>
 
+        <div style="
+            background:#fff;
+            border:1px solid #dee2e6;
+            border-radius:9px;
+            padding:18px;
+        ">
+        
+        <div style="
+                font-size:11px;
+                color:#0f5132;
+                font-weight:700;
+            ">
+                LOW
+            </div>
+
+            <div style="
+                font-size:30px;
+                font-weight:800;
+                color:#198754;
+                margin-top:5px;
+            ">
+                {{ $low }}
+            </div>
+        </div>
 
         <div style="
             background:#fff;
@@ -221,7 +245,7 @@
 
             <div style="
                 font-size:11px;
-                color:#0f5132;
+                color:#842029;
                 font-weight:700;
             ">
                 OPEN
