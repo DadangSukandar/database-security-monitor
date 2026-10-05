@@ -73,6 +73,8 @@ class SecurityAlert extends Model
 
         'acknowledged_at',
 
+        'investigation_started_at',
+
         'resolved_at',
 
         'resolution_note',
@@ -106,6 +108,8 @@ class SecurityAlert extends Model
         'sla_started_at' => 'datetime',
 
         'acknowledged_at' => 'datetime',
+
+        'investigation_started_at' => 'datetime',
 
         'resolved_at' => 'datetime',
 

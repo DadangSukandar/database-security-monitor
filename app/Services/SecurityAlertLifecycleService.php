@@ -11,8 +11,11 @@ use Illuminate\Support\Facades\DB;
 class SecurityAlertLifecycleService
 {
     public const Open = 'OPEN';
+
     public const Acknowledged = 'ACKNOWLEDGED';
+
     public const Investigating = 'INVESTIGATING';
+
     public const Resolved = 'RESOLVED';
 
     /** @var array<string, list<string>> */
@@ -32,13 +35,27 @@ class SecurityAlertLifecycleService
         ]);
     }
 
-    public function investigate(SecurityAlert $alert, ?string $notes = null, ?int $userId = null, ?CarbonInterface $transitionedAt = null): SecurityAlert
-    {
+    public function investigate(
+        SecurityAlert $alert,
+        ?string $notes = null,
+        ?int $userId = null,
+        ?CarbonInterface $transitionedAt = null
+    ): SecurityAlert {
         $transitionedAt ??= now();
 
-        return $this->transition($alert, self::Investigating, 'START_INVESTIGATION', $notes ?? 'Investigation started.', $userId, [
-            'acknowledged_at' => $alert->acknowledged_at ?? $transitionedAt,
-        ]);
+        return $this->transition(
+            $alert,
+            self::Investigating,
+            'START_INVESTIGATION',
+            $notes ?? 'Investigation started.',
+            $userId,
+            [
+                'acknowledged_at' => $alert->acknowledged_at
+                    ?? $transitionedAt,
+
+                'investigation_started_at' => $transitionedAt,
+            ]
+        );
     }
 
     public function resolve(SecurityAlert $alert, string $resolutionNote, ?int $userId = null, ?CarbonInterface $transitionedAt = null): SecurityAlert
@@ -64,13 +81,21 @@ class SecurityAlertLifecycleService
         return $this->transition($alert, self::Open, 'AUTO_REOPEN', 'Finding ditemukan kembali pada assessment #'.$assessmentId.'.', null, $this->reopenAttributes($occurredAt));
     }
 
-    /** @return array<string, CarbonInterface|null> */
-    private function reopenAttributes(CarbonInterface $slaStartedAt): array
-    {
+    /**
+     * @return array<string, CarbonInterface|null>
+     */
+    private function reopenAttributes(
+        CarbonInterface $slaStartedAt
+    ): array {
         return [
             'acknowledged_at' => null,
+
+            'investigation_started_at' => null,
+
             'resolved_at' => null,
+
             'resolution_note' => null,
+
             'sla_started_at' => $slaStartedAt,
         ];
     }
