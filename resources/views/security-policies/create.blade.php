@@ -210,44 +210,24 @@
                     Rule Type
                 </label>
 
-                <select
+                <input
+                    type="text"
                     name="rule_type"
+                    list="rule-types"
+                    value="{{ old('rule_type') }}"
+                    placeholder="Contoh: PRIVILEGE"
+                    maxlength="100"
                     required
                 >
 
-                    <option value="">
-                        -- Select Rule --
-                    </option>
-
-                    <option
-                        value="PRIVILEGE"
-                        @selected(old('rule_type') === 'PRIVILEGE')
-                    >
-                        Privilege
-                    </option>
-
-                    <option
-                        value="SENSITIVE_DATA"
-                        @selected(old('rule_type') === 'SENSITIVE_DATA')
-                    >
-                        Sensitive Data
-                    </option>
-
-                    <option
-                        value="LOGIN"
-                        @selected(old('rule_type') === 'LOGIN')
-                    >
-                        Login
-                    </option>
-
-                    <option
-                        value="QUERY"
-                        @selected(old('rule_type') === 'QUERY')
-                    >
-                        Query
-                    </option>
-
-                </select>
+                <datalist id="rule-types">
+                    <option value="ACCESS_CONTROL"></option>
+                    <option value="DELETE_OPERATION"></option>
+                    <option value="PRIVILEGE"></option>
+                    <option value="SENSITIVE_DATA"></option>
+                    <option value="LOGIN"></option>
+                    <option value="QUERY"></option>
+                </datalist>
 
             </div>
 

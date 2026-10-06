@@ -197,33 +197,27 @@
                     Rule Type
                 </label>
 
-                <select
+                <input
+                    type="text"
                     name="rule_type"
+                    list="rule-types"
+                    value="{{ old(
+                        'rule_type',
+                        $securityPolicy->rule_type
+                    ) }}"
+                    placeholder="Contoh: PRIVILEGE"
+                    maxlength="100"
                     required
                 >
 
-                    @foreach([
-                        'PRIVILEGE',
-                        'SENSITIVE_DATA',
-                        'LOGIN',
-                        'QUERY'
-                    ] as $type)
-
-                        <option
-                            value="{{ $type }}"
-                            @selected(
-                                old(
-                                    'rule_type',
-                                    $securityPolicy->rule_type
-                                ) === $type
-                            )
-                        >
-                            {{ $type }}
-                        </option>
-
-                    @endforeach
-
-                </select>
+                <datalist id="rule-types">
+                    <option value="ACCESS_CONTROL"></option>
+                    <option value="DELETE_OPERATION"></option>
+                    <option value="PRIVILEGE"></option>
+                    <option value="SENSITIVE_DATA"></option>
+                    <option value="LOGIN"></option>
+                    <option value="QUERY"></option>
+                </datalist>
 
             </div>
 
